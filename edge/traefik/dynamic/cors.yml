@@ -1,0 +1,30 @@
+http:
+  middlewares:
+    cors-default:
+      headers:
+        accessControlAllowCredentials: true
+        accessControlAllowHeaders:
+          - Authorization
+          - Content-Type
+          - Origin
+          - Accept
+          - X-Requested-With
+          - X-Request-Id
+        accessControlAllowMethods:
+          - GET
+          - POST
+          - PUT
+          - PATCH
+          - DELETE
+          - OPTIONS
+        accessControlAllowOriginList:
+          - http://localhost
+          - http://localhost:3000
+          - http://localhost:5173
+          - http://127.0.0.1:3000
+          - http://127.0.0.1:5173
+        accessControlExposeHeaders:
+          - Content-Length
+          - Content-Type
+          - X-Request-Id
+        addVaryHeader: true

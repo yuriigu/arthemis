@@ -1,0 +1,47 @@
+services:
+  api:
+    container_name: arthemis-auth
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: arthemis-auth-api
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "6769:6769"
+    networks:
+      arthemis-edge:
+        aliases:
+          - auth
+      auth-internal: {}
+
+  postgres:
+    image: postgres:16
+    container_name: arthemis-auth-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: app_db
+      POSTGRES_USER: app_user
+      POSTGRES_PASSWORD: app_password
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - auth-internal
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U app_user -d app_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  postgres_data:
+
+networks:
+  arthemis-edge:
+    name: arthemis-edge
+    external: true
+  auth-internal:
+    driver: bridge

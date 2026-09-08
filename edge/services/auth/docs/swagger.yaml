@@ -1,0 +1,232 @@
+basePath: /
+definitions:
+  models.CreateUserRequest:
+    properties:
+      password:
+        type: string
+      role:
+        type: string
+      username:
+        type: string
+    type: object
+  models.CreateUserResponse:
+    properties:
+      role:
+        type: string
+      sub:
+        type: string
+      username:
+        type: string
+    type: object
+  models.DeleteUserRequest:
+    properties:
+      username:
+        type: string
+    type: object
+  models.DeleteUserResponse:
+    properties:
+      role:
+        type: string
+      sub:
+        type: string
+      username:
+        type: string
+    type: object
+  models.HealthCheck:
+    properties:
+      message:
+        type: string
+      status:
+        type: string
+    type: object
+  models.HealthCheckResponse:
+    properties:
+      checks:
+        additionalProperties:
+          $ref: '#/definitions/models.HealthCheck'
+        type: object
+      service:
+        type: string
+      status:
+        type: string
+      timestamp:
+        type: string
+    type: object
+  models.LoginRequest:
+    properties:
+      password:
+        type: string
+      username:
+        type: string
+    type: object
+  models.LoginResponse:
+    properties:
+      token:
+        type: string
+    type: object
+host: localhost:6769
+info:
+  contact: {}
+  description: API service for JWT token validation and authentication.
+  license:
+    name: MIT
+    url: http://opensource.org/licenses/MIT
+  termsOfService: http://swagger.io/terms/
+  title: Authentication API
+  version: "1.0"
+paths:
+  /health:
+    get:
+      description: Reports service availability and database connectivity.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Service healthy
+          schema:
+            $ref: '#/definitions/models.HealthCheckResponse'
+        "503":
+          description: Service unhealthy
+          schema:
+            $ref: '#/definitions/models.HealthCheckResponse'
+      summary: Health check
+      tags:
+      - Operational
+  /login:
+    post:
+      consumes:
+      - application/json
+      description: Validates user credentials and returns a signed JWT token with
+        sub and role claims.
+      parameters:
+      - description: User credentials
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/models.LoginRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: JWT token gerado com sucesso
+          schema:
+            $ref: '#/definitions/models.LoginResponse'
+        "400":
+          description: 'Bad Request: invalid body'
+          schema:
+            type: string
+        "401":
+          description: 'Unauthorized: invalid credentials'
+          schema:
+            type: string
+        "500":
+          description: Internal Server Error
+          schema:
+            type: string
+      summary: Login
+      tags:
+      - Authentication
+  /register:
+    post:
+      consumes:
+      - application/json
+      description: Receives user data, hashes the password and persists the new user.
+      parameters:
+      - description: New user data
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/models.CreateUserRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: User criado com sucesso
+          schema:
+            $ref: '#/definitions/models.CreateUserResponse'
+        "400":
+          description: 'Bad Request: invalid body'
+          schema:
+            type: string
+        "409":
+          description: 'Conflict: username already exists'
+          schema:
+            type: string
+        "500":
+          description: Internal Server Error
+          schema:
+            type: string
+      summary: Register user
+      tags:
+      - Authentication
+  /unregister:
+    post:
+      consumes:
+      - application/json
+      description: Removes an existing user from the database by username.
+      parameters:
+      - description: User to remove
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/models.DeleteUserRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: User removido com sucesso
+          schema:
+            $ref: '#/definitions/models.DeleteUserResponse'
+        "400":
+          description: 'Bad Request: invalid body'
+          schema:
+            type: string
+        "404":
+          description: 'Not Found: user does not exist'
+          schema:
+            type: string
+        "500":
+          description: Internal Server Error
+          schema:
+            type: string
+      summary: Unregister user
+      tags:
+      - Authentication
+  /validate:
+    post:
+      consumes:
+      - application/json
+      description: Parses the Authorization header, validates the HMAC signature,
+        and returns user identity in response headers.
+      parameters:
+      - description: Bearer token
+        example: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Token is valid. User info returned in X-User-Id and X-User-Role
+            headers.
+          schema:
+            type: string
+        "401":
+          description: 'Unauthorized: Missing or invalid token'
+          schema:
+            type: string
+      summary: Validate JWT Token
+      tags:
+      - Authentication
+securityDefinitions:
+  BearerAuth:
+    description: Type "Bearer " followed by your JWT token.
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"

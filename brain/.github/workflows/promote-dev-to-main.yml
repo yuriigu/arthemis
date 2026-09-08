@@ -1,0 +1,109 @@
+name: Promote Dev To Main
+
+on:
+  pull_request:
+    types:
+      - closed
+    branches:
+      - dev
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
+jobs:
+  promote:
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Create or update PR to main
+        id: promote
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const sourcePr = context.payload.pull_request;
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const head = 'dev';
+            const base = 'main';
+            const title = sourcePr.title;
+            const body = [
+              `Promocao automatica disparada pelo merge de #${sourcePr.number} em \`${sourcePr.base.ref}\`.`,
+              '',
+              `PR de origem: #${sourcePr.number}`,
+              '',
+              sourcePr.body || '_Sem descricao no PR original._',
+            ].join('\n');
+
+            const existing = await github.rest.pulls.list({
+              owner,
+              repo,
+              state: 'open',
+              head: `${owner}:${head}`,
+              base,
+            });
+
+            let targetPr = existing.data[0];
+
+            if (targetPr) {
+              targetPr = (
+                await github.rest.pulls.update({
+                  owner,
+                  repo,
+                  pull_number: targetPr.number,
+                  title,
+                  body,
+                })
+              ).data;
+            } else {
+              targetPr = (
+                await github.rest.pulls.create({
+                  owner,
+                  repo,
+                  head,
+                  base,
+                  title,
+                  body,
+                  maintainer_can_modify: true,
+                })
+              ).data;
+            }
+
+            const labels = sourcePr.labels.map((label) => label.name).filter(Boolean);
+            await github.rest.issues.setLabels({
+              owner,
+              repo,
+              issue_number: targetPr.number,
+              labels,
+            });
+
+            const assignees = sourcePr.assignees.map((assignee) => assignee.login).filter(Boolean);
+            await github.rest.issues.update({
+              owner,
+              repo,
+              issue_number: targetPr.number,
+              assignees,
+            });
+
+            const reviewers = sourcePr.requested_reviewers.map((reviewer) => reviewer.login).filter(Boolean);
+            const teamReviewers = sourcePr.requested_teams.map((team) => team.slug).filter(Boolean);
+
+            if (reviewers.length > 0 || teamReviewers.length > 0) {
+              try {
+                await github.rest.pulls.requestReviewers({
+                  owner,
+                  repo,
+                  pull_number: targetPr.number,
+                  reviewers,
+                  team_reviewers: teamReviewers,
+                });
+              } catch (error) {
+                core.warning(`Nao foi possivel replicar reviewers: ${error.message}`);
+              }
+            }
+
+            core.setOutput('pr-number', String(targetPr.number));
+            core.setOutput('pr-url', targetPr.html_url);

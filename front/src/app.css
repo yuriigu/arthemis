@@ -1,0 +1,179 @@
+@import 'tailwindcss';
+@import "tw-animate-css";
+@import "shadcn-svelte/tailwind.css";
+@import "@fontsource-variable/instrument-sans";
+@import "@fontsource-variable/lora";
+
+@custom-variant dark (&:is(.dark *));
+
+:root {
+	--color-sage-green-50: oklch(97.16% 0.016 130.42);
+	--color-sage-green-100: oklch(94.30% 0.033 129.70);
+	--color-sage-green-150: oklch(91.37% 0.049 129.92);
+	--color-sage-green-200: oklch(88.43% 0.064 130.14);
+	--color-sage-green-300: oklch(82.80% 0.097 130.68);
+	--color-sage-green-400: oklch(77.31% 0.129 131.03);
+	--color-sage-green-450: oklch(74.67% 0.167 131.67);
+	--color-sage-green-500: oklch(71.89% 0.157 132.15);
+	--color-sage-green-600: oklch(61.02% 0.131 131.98);
+	--color-sage-green-700: oklch(49.57% 0.104 132.21);
+	--color-sage-green-800: oklch(37.49% 0.074 131.97);
+	--color-sage-green-850: oklch(31.06% 0.059 131.76);
+	--color-sage-green-900: oklch(24.63% 0.044 131.56);
+	--color-sage-green-950: oklch(20.46% 0.032 130.48);
+
+	--background: var(--color-sage-green-50);
+	--foreground: oklch(0.147 0.004 49.25);
+	--card: #ffffff;
+	--card-foreground: oklch(0.147 0.004 49.25);
+	--popover: #ffffff;
+	--popover-foreground: oklch(0.147 0.004 49.25);
+	--primary: var(--color-sage-green-500);
+	--primary-foreground: #ffffff;
+	--secondary: var(--color-sage-green-100);
+	--secondary-foreground: oklch(0.21 0.006 285.885);
+	--muted: var(--color-sage-green-100);
+	--muted-foreground: oklch(0.553 0.013 58.071);
+	--accent: var(--color-sage-green-100);
+	--accent-foreground: oklch(0.216 0.006 56.043);
+	--destructive: oklch(0.577 0.245 27.325);
+    --destructive-foreground: oklch(1 0 0);
+	--border: var(--color-sage-green-200);
+	--input: var(--color-sage-green-200);
+	--ring: var(--color-sage-green-500);
+	--radius: 0.75rem;
+	--sidebar: var(--color-sage-green-450); /* cor do fundo */
+	--sidebar-foreground: #000000; /* cor do texto e ícones */
+	--sidebar-primary: var(--color-sage-green-450); /* cor de destaque */
+	--sidebar-primary-foreground: #ffffff; /* cor do texto/ícone quando o item está selecionado */
+	--sidebar-accent: var(--color-sage-green-300); /* houver */
+	--sidebar-accent-foreground: #1a1a1a; /* cor do texto/ícone durante o hover */
+	--sidebar-border: var(--color-sage-green-200); /* cor da linha divisória (borda) */
+	--sidebar-ring: var(--color-sage-green-500); /* cor do anel de foco */
+	--chart-1: var(--color-sage-green-500);
+	--chart-2: var(--color-sage-green-300);
+	--color-chrome: var(--color-sage-green-700);
+	--color-safari: var(--color-sage-green-300);
+}
+
+.dark {
+	--background: var(--color-sage-green-950);
+	--foreground: var(--color-sage-green-50);
+	--card: var(--color-sage-green-900);
+	--card-foreground: var(--color-sage-green-50);
+	--popover: var(--color-sage-green-900);
+	--popover-foreground: var(--color-sage-green-50);
+	--primary: var(--color-sage-green-400);
+	--primary-foreground: var(--color-sage-green-950);
+	--secondary: var(--color-sage-green-800);
+	--secondary-foreground: var(--color-sage-green-50);
+	--muted: var(--color-sage-green-900);
+	--muted-foreground: var(--color-sage-green-150);
+	--accent: var(--color-sage-green-800);
+	--accent-foreground: var(--color-sage-green-50);
+	--destructive: oklch(0.66 0.20807 23.082);
+    --destructive-foreground: oklch(1 0 0);
+	--border: var(--color-sage-green-800);
+	--input: var(--color-sage-green-800);
+	--ring: var(--color-sage-green-400);
+	--sidebar: var(--color-sage-green-850);
+	--sidebar-foreground: var(--color-sage-green-100);
+	--sidebar-primary: var(--color-sage-green-500);
+	--sidebar-primary-foreground: #ffffff;
+	--sidebar-accent: var(--color-sage-green-800);
+	--sidebar-accent-foreground: var(--color-sage-green-50);
+	--sidebar-border: var(--color-sage-green-800);
+	--sidebar-ring: var(--color-sage-green-400);
+}
+
+@theme inline {
+	--font-sans: 'Instrument Sans Variable', sans-serif;
+	--font-serif: 'Lora Variable', serif;
+
+	--color-sage-green-50: var(--color-sage-green-50);
+	--color-sage-green-100: var(--color-sage-green-100);
+	--color-sage-green-200: var(--color-sage-green-200);
+	--color-sage-green-300: var(--color-sage-green-300);
+	--color-sage-green-400: var(--color-sage-green-400);
+	--color-sage-green-500: var(--color-sage-green-500);
+	--color-sage-green-600: var(--color-sage-green-600);
+	--color-sage-green-700: var(--color-sage-green-700);
+	--color-sage-green-800: var(--color-sage-green-800);
+	--color-sage-green-900: var(--color-sage-green-900);
+	--color-sage-green-950: var(--color-sage-green-950);
+
+	--color-sidebar-ring: var(--sidebar-ring);
+	--color-sidebar-border: var(--sidebar-border);
+	--color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+	--color-sidebar-accent: var(--sidebar-accent);
+	--color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+	--color-sidebar-primary: var(--sidebar-primary);
+	--color-sidebar-foreground: var(--sidebar-foreground);
+	--color-sidebar: var(--sidebar);
+	--color-ring: var(--ring);
+	--color-input: var(--input);
+	--color-border: var(--border);
+	--color-destructive: var(--destructive);
+	--color-destructive-foreground: var(--destructive-foreground);
+	--color-accent-foreground: var(--accent-foreground);
+	--color-accent: var(--accent);
+	--color-muted-foreground: var(--muted-foreground);
+	--color-muted: var(--muted);
+	--color-secondary-foreground: var(--secondary-foreground);
+	--color-secondary: var(--secondary);
+	--color-primary-foreground: var(--primary-foreground);
+	--color-primary: var(--primary);
+	--color-popover-foreground: var(--popover-foreground);
+	--color-popover: var(--popover);
+	--color-card-foreground: var(--card-foreground);
+	--color-card: var(--card);
+	--color-foreground: var(--foreground);
+	--color-background: var(--background);
+	--radius-sm: calc(var(--radius) * 0.6);
+	--radius-md: calc(var(--radius) * 0.8);
+	--radius-lg: var(--radius);
+	--radius-xl: calc(var(--radius) * 1.4);
+	--radius-2xl: calc(var(--radius) * 1.8);
+	--radius-3xl: calc(var(--radius) * 2.2);
+	--radius-4xl: calc(var(--radius) * 2.6);
+}
+
+@layer base {
+	* {
+		@apply border-border outline-ring/50;
+	}
+	body {
+		@apply bg-background text-foreground antialiased;
+		font-feature-settings: "ss01", "ss02", "cv01", "cv02";
+	}
+	html {
+		@apply font-sans;
+		font-size: 16px;
+		line-height: 1.6;
+	}
+	
+	h1, h2, h3, h4, h5, h6 {
+		@apply font-serif font-semibold tracking-tight text-foreground;
+		line-height: 1.2;
+	}
+
+	h1 { @apply text-4xl md:text-5xl; }
+	h2 { @apply text-3xl md:text-4xl; }
+	h3 { @apply text-2xl md:text-3xl; }
+	h4 { @apply text-xl md:text-2xl; }
+	
+	p {
+		@apply leading-relaxed mb-4 text-sage-green-900/80;
+	}
+
+	small {
+		@apply text-sm font-medium leading-none;
+	}
+
+	.maplibregl-popup-content {
+		@apply bg-transparent! shadow-none! p-0! rounded-none!;
+	}
+	.maplibregl-popup-tip {
+		@apply hidden!;
+	}
+}

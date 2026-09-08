@@ -1,0 +1,78 @@
+name: Main PR Quality
+
+on:
+  pull_request:
+    types:
+      - opened
+      - reopened
+      - synchronize
+      - ready_for_review
+    branches:
+      - main
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: main-pr-quality-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    if: github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    env:
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+      SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: "1.25.4"
+          cache: true
+          check-latest: true
+
+      - name: Download Go dependencies
+        run: go mod download
+
+      - name: Format check (gofmt)
+        run: |
+          test -z "$(gofmt -l .)" || (echo "gofmt needed"; gofmt -l .; exit 1)
+
+      - name: Vet
+        if: ${{ always() }}
+        run: go vet ./...
+
+      - name: Lint (golangci-lint)
+        if: ${{ always() }}
+        uses: golangci/golangci-lint-action@v9
+        with:
+          version: latest
+          args: --timeout=5m
+
+      - name: Run unit tests with coverage
+        if: ${{ always() }}
+        run: |
+          go test ./... -count=1 -race -covermode=atomic -coverprofile=coverage.out
+
+      - name: Upload coverage artifact
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: coverage.out
+          if-no-files-found: ignore
+
+      - name: SonarQube Scan
+        if: ${{ always() && env.SONAR_TOKEN != '' && env.SONAR_HOST_URL != '' }}
+        uses: SonarSource/sonarqube-scan-action@v6
+        with:
+          args: >
+            -Dsonar.go.coverage.reportPaths=coverage.out

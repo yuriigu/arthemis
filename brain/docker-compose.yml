@@ -1,0 +1,52 @@
+services:
+  app:
+    container_name: arthemis-brain
+    build: 
+      context: .
+      dockerfile: Dockerfile
+    image: go-api
+    ports:
+      - 8081:8081
+    environment:
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=app_user
+      - DB_PASSWORD=app_password
+      - DB_NAME=app_db
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      arthemis-edge:
+        aliases:
+          - brain
+      brain-internal: {}
+  postgres:
+    image: postgres:16
+    container_name: arthemis-brain-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: app_db
+      POSTGRES_USER: app_user
+      POSTGRES_PASSWORD: app_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - brain-internal
+    healthcheck:  
+      test: ["CMD-SHELL", "pg_isready -U app_user -d app_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  postgres_data:
+
+networks:
+  arthemis-edge:
+    name: arthemis-edge
+    external: true
+  brain-internal:
+    driver: bridge

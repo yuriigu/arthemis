@@ -1,0 +1,23 @@
+http:
+  middlewares:
+    security-default:
+      headers:
+        browserXssFilter: true
+        contentTypeNosniff: true
+        frameDeny: true
+        referrerPolicy: no-referrer
+
+    strip-brain-prefix:
+      stripPrefix:
+        prefixes:
+          - /brain
+
+    strip-watcher-prefix:
+      stripPrefix:
+        prefixes:
+          - /watcher
+
+    strip-auth-prefix:
+      stripPrefix:
+        prefixes:
+          - /auth

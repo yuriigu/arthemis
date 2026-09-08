@@ -1,0 +1,9 @@
+http:
+  middlewares:
+    auth-jwt:
+      forwardAuth:
+        address: http://auth:6769/validate
+        trustForwardHeader: true
+        authResponseHeaders:
+          - X-User-Id
+          - X-User-Role

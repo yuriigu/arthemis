@@ -1,0 +1,46 @@
+http:
+  routers:
+    brain:
+      entryPoints:
+        - web
+      rule: PathPrefix(`/brain`)
+      service: brain
+      middlewares:
+        - gateway-chain
+        - strip-brain-prefix
+
+    watcher:
+      entryPoints:
+        - web
+      rule: PathPrefix(`/watcher`)
+      service: watcher
+      middlewares:
+        - gateway-chain
+        - strip-watcher-prefix
+
+    auth:
+      entryPoints:
+        - web
+      rule: PathPrefix(`/auth`)
+      service: auth
+      middlewares:
+        - security-default
+        - cors-default
+        - rate-limit
+        - strip-auth-prefix
+
+  services:
+    brain:
+      loadBalancer:
+        servers:
+          - url: http://brain:8081
+
+    watcher:
+      loadBalancer:
+        servers:
+          - url: http://watcher:8082
+
+    auth:
+      loadBalancer:
+        servers:
+          - url: http://auth:6769
