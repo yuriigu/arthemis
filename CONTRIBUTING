@@ -96,4 +96,4 @@ Workflow
 - Criar os commits seguindo o padrão definido.
 - Ao terminar, não esquecer de criar o Pull Request apontando para a develop.
 - Aguardar a revisão e aprovação do Pull Request.
-- Após a aprovação, realizar o merge para a develop.
+- Após a aprovação, realizar o merge para a develop. 
