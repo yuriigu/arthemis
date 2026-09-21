@@ -1,0 +1,14 @@
+// Schema Prisma da API do Arthemis.
+//
+// Nesta etapa (Task #1) o schema contem apenas o generator e o datasource: os
+// models serao adicionados nas proximas tarefas. A connection string fica em
+// prisma.config.ts, seguindo o padrao do Prisma 7.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
