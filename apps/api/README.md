@@ -1,114 +1,147 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# Arthemis API
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+Backend do Arthemis em Nest.js. Esta é a base criada na **Task #1** (setup da API
+e infraestrutura de banco), que substitui gradualmente os serviços legados em Go
+(`legacy/brain`, `legacy/edge`, `legacy/watcher`).
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+O que já existe:
 
-## Description
+- Esqueleto Nest.js rodando na porta **8081** (compatível com o gateway Traefik legado).
+- Validação de variáveis de ambiente no boot (fail-fast).
+- Prisma ORM configurado (sem models ainda) com driver adapter `pg`.
+- `docker-compose.yml` apenas com o PostgreSQL 16.
+- `GET /healthcheck` com ping real no banco (200/503).
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+## Stack
 
-## Project setup
+| Camada    | Tecnologia                                       |
+| --------- | ------------------------------------------------ |
+| Runtime   | Node.js 22+                                      |
+| Framework | Nest.js 12 (TypeScript, ESM)                     |
+| ORM       | Prisma 7 (`prisma-client` + `@prisma/adapter-pg`) |
+| Banco     | PostgreSQL 16 (Docker Compose)                   |
+| Testes    | Vitest + Supertest                               |
+| Lint      | oxlint + Prettier                                |
 
-```bash
-$ npm install
+## Estrutura
+
+```text
+apps/api
+├── prisma/schema.prisma          # generator + datasource (models virão nas próximas tasks)
+├── prisma.config.ts              # config do Prisma CLI: schema + DATABASE_URL
+├── docker-compose.yml            # somente o PostgreSQL 16
+├── .env.example                  # modelo das variáveis de ambiente
+└── src
+    ├── config/env.validation.ts  # schema zod validado no boot
+    ├── health/                   # GET /healthcheck (controller/service + contrato legado)
+    ├── prisma/                   # PrismaModule/PrismaService (global)
+    ├── app.module.ts
+    └── main.ts                   # bootstrap (porta 8081, fail-fast)
 ```
 
-## Compile and run the project
+## Pré-requisitos
+
+- Node.js 22 ou superior e npm
+- Docker com Docker Compose
+
+## Configuração
 
 ```bash
-# development
-$ npm run start
-
-# watch mode
-$ npm run start:dev
-
-# production mode
-$ npm run start:prod
+cd apps/api
+cp .env.example .env       # ajuste as credenciais se necessário
+npm install
+npm run prisma:generate    # gera o client em src/generated/prisma (não versionado)
+docker compose up -d       # sobe o PostgreSQL 16 na porta 5432
+npm run start:dev          # sobe a API em http://localhost:8081
 ```
 
-## Run tests
+> O client do Prisma é gerado a partir do `schema.prisma` e **não** é versionado:
+> rode `npm run prisma:generate` após clonar o repositório ou alterar o schema.
+
+## Variáveis de ambiente
+
+| Variável            | Obrigatória   | Default        | Descrição                              |
+| ------------------- | ------------- | -------------- | -------------------------------------- |
+| `PORT`              | não           | `8081`         | Porta HTTP da API.                     |
+| `SERVICE_NAME`      | não           | `arthemis-api` | Valor do campo `service` no healthcheck. |
+| `NODE_ENV`          | não           | `development`  | `development`, `test` ou `production`. |
+| `DATABASE_URL`      | **sim**       | —              | Connection string usada pelo Prisma.   |
+| `POSTGRES_USER`     | sim (Compose) | —              | Usuário criado no container.           |
+| `POSTGRES_PASSWORD` | sim (Compose) | —              | Senha do usuário.                      |
+| `POSTGRES_DB`       | sim (Compose) | —              | Nome do banco.                         |
+
+A validação (`src/config/env.validation.ts`) roda no boot: sem `DATABASE_URL` a
+aplicação encerra com erro em vez de subir sem banco — comportamento herdado do
+serviço `auth` legado. As variáveis `POSTGRES_*` são exigidas pelo
+`docker-compose.yml` (o Compose falha explicitamente se faltarem) e devem bater
+com a `DATABASE_URL`.
+
+## Endpoints
+
+### `GET /`
+
+Smoke test: responde `Hello World!`.
+
+### `GET /healthcheck`
+
+Ping real no banco (`prisma.$queryRaw` + `SELECT 1`) com timeout de 2 segundos.
+
+Saudável — `200`:
+
+```json
+{
+  "status": "ok",
+  "service": "arthemis-api",
+  "timestamp": "2026-09-20T20:48:38.000Z",
+  "checks": {
+    "database": { "status": "up", "message": "database connection is healthy" }
+  }
+}
+```
+
+Banco fora — `503` (resposta elegante, sem estourar um 500 genérico):
+
+```json
+{
+  "status": "degraded",
+  "service": "arthemis-api",
+  "timestamp": "2026-09-20T20:48:38.000Z",
+  "checks": {
+    "database": {
+      "status": "down",
+      "message": "database is unreachable at 127.0.0.1:5432"
+    }
+  }
+}
+```
+
+O formato segue o contrato do `legacy/edge/services/auth/handlers/health.go`. O
+`/health` do `brain` legado (que sempre respondia 200) não foi reaproveitado.
+
+## Scripts
+
+| Script                    | Descrição                                            |
+| ------------------------- | ---------------------------------------------------- |
+| `npm run start:dev`       | Sobe a API em modo watch.                            |
+| `npm run start:prod`      | Executa o build (`dist/`).                           |
+| `npm run build`           | Compila o projeto.                                   |
+| `npm test`                | Testes unitários (Vitest).                           |
+| `npm run test:e2e`        | Testes de contrato HTTP (sem banco).                 |
+| `npm run lint`            | oxlint.                                              |
+| `npm run format`          | Prettier.                                            |
+| `npm run prisma:generate` | Gera o Prisma Client em `src/generated/prisma`.      |
+| `npm run db:migrate`      | Cria/aplica migrations em desenvolvimento.           |
+| `npm run db:push`         | Sincroniza o schema com o banco sem gerar migration. |
+
+## Banco de dados
 
 ```bash
-# unit tests
-$ npm run test
-
-# e2e tests
-$ npm run test:e2e
-
-# test coverage
-$ npm run test:cov
+docker compose up -d            # sobe o container
+docker compose ps               # status + healthcheck
+docker compose logs -f postgres # logs
+docker compose down             # derruba (mantém o volume)
+docker compose down -v          # derruba e apaga o volume
 ```
 
-## Deployment
-
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
-
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
-
-```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
-```
-
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
-
-## Observability
-
-In production applications, observability is essential for understanding how your system behaves, detecting issues early, and maintaining reliable performance.
-
-[NestJS Observe](https://observe.nestjs.com) automatically instruments your NestJS application, giving you deep visibility into your system with minimal setup:
-
-- **Distributed tracing:** Follow requests across services and understand how they flow through your system.
-- **Waterfall analysis:** Visualize request execution and identify slow operations, bottlenecks, and unexpected delays.
-- **Performance analysis:** Analyze application performance in real time and quickly pinpoint areas that need optimization.
-- **Metrics:** Track key application and infrastructure metrics to understand system health and performance trends.
-- **Logging:** Centralize and correlate logs with traces and other telemetry to make debugging easier.
-- **Error tracking:** Detect errors quickly and investigate their root causes with the surrounding context.
-- **SLA monitoring:** Track service-level objectives and identify when your application is approaching or exceeding defined thresholds.
-- **Alarms and alerts:** Set up alerts for critical errors, performance degradation, SLA violations, and other anomalies so your team can react quickly.
-
-## Resources
-
-Check out a few resources that may come in handy when working with NestJS:
-
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Auto-instrument your application with [NestJS Observer](https://observer.nestjs.com). Distributed tracing, metrics, and logging made easy. Error tracking and performance monitoring for your NestJS applications.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
-
-## Support
-
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
-
-## Stay in touch
-
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
-
-## License
-
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+Não há rede externa `arthemis-edge` nem serviço de aplicação no Compose: a
+integração com o Traefik/gateway fica para a task de deploy.
