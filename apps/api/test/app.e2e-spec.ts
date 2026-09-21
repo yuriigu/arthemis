@@ -3,7 +3,6 @@ import type { INestApplication } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { Test, TestingModule } from '@nestjs/testing';
 import request from 'supertest';
-import type { App } from 'supertest/types';
 import { AppController } from './../src/app.controller.js';
 import { AppService } from './../src/app.service.js';
 import { HealthModule } from './../src/health/health.module.js';
@@ -23,7 +22,7 @@ function createPrismaStub(queryRaw: () => Promise<unknown>) {
 }
 
 describe('API (e2e)', () => {
-  let app: INestApplication<App>;
+  let app: INestApplication;
 
   async function initApp(prisma: unknown): Promise<void> {
     const moduleFixture: TestingModule = await Test.createTestingModule({

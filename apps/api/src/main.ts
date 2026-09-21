@@ -2,6 +2,7 @@ import { Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module.js';
+import { configureApp } from './config/app.setup.js';
 
 /**
  * Porta default da API: 8081, mantida por compatibilidade com o gateway
@@ -13,6 +14,9 @@ const logger = new Logger('Bootstrap');
 
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create(AppModule);
+
+  // ValidationPipe global (whitelist/forbidNonWhitelisted/transform).
+  configureApp(app);
 
   // Garante que o onModuleDestroy (fechamento do pool do Prisma) seja chamado
   // em SIGTERM/SIGINT.

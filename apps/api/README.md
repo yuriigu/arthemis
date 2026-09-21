@@ -8,9 +8,10 @@ O que já existe:
 
 - Esqueleto Nest.js rodando na porta **8081** (compatível com o gateway Traefik legado).
 - Validação de variáveis de ambiente no boot (fail-fast).
-- Prisma ORM configurado (sem models ainda) com driver adapter `pg`.
+- Prisma ORM configurado com driver adapter `pg` (model `User` + migration aplicada).
 - `docker-compose.yml` apenas com o PostgreSQL 16.
 - `GET /healthcheck` com ping real no banco (200/503).
+- Módulo de usuários (`POST /users`, `GET /users/:id`) com hash bcrypt e seed inicial.
 
 ## Stack
 
@@ -27,14 +28,18 @@ O que já existe:
 
 ```text
 apps/api
-├── prisma/schema.prisma          # generator + datasource (models virão nas próximas tasks)
-├── prisma.config.ts              # config do Prisma CLI: schema + DATABASE_URL
+├── prisma/schema.prisma          # model User (tabela `users`) + generator/datasource
+├── prisma/migrations/            # migration create_users_table (aplicada)
+├── prisma/seed.ts                # seed de desenvolvimento (usuário inicial)
+├── prisma.config.ts              # config do Prisma CLI: schema, migrations, seed e DATABASE_URL
 ├── docker-compose.yml            # somente o PostgreSQL 16
 ├── .env.example                  # modelo das variáveis de ambiente
 └── src
     ├── config/env.validation.ts  # schema zod validado no boot
+    ├── config/app.setup.ts       # ValidationPipe global (compartilhado com os testes)
     ├── health/                   # GET /healthcheck (controller/service + contrato legado)
     ├── prisma/                   # PrismaModule/PrismaService (global)
+    ├── users/                    # UsersModule/Controller/Service/Repository + DTOs
     ├── app.module.ts
     └── main.ts                   # bootstrap (porta 8081, fail-fast)
 ```
@@ -118,6 +123,60 @@ Banco fora — `503` (resposta elegante, sem estourar um 500 genérico):
 O formato segue o contrato do `legacy/edge/services/auth/handlers/health.go`. O
 `/health` do `brain` legado (que sempre respondia 200) não foi reaproveitado.
 
+## Usuários
+
+Model `User` (tabela `users`) e módulo `src/users`, com o mapeamento vindo do
+legado: PK em UUID (era a claim `sub` do `auth`), `role` em varchar(20) com
+default `visitor` e CHECK no banco (`admin | manager | visitor`), e-mail único
+(o `username` do legado foi substituído pelo e-mail como identidade) e o hash de
+senha em `password_hash`.
+
+| Método | Rota         | Comportamento                                                                |
+| ------ | ------------ | ---------------------------------------------------------------------------- |
+| `POST` | `/users`     | `201` com `{ id, email, role, createdAt, updatedAt }`; `400` corpo inválido; `409` e-mail já cadastrado |
+| `GET`  | `/users/:id` | `200` com o usuário (sem hash); `400` id que não é UUID; `404` não encontrado |
+
+Regras de segurança implementadas:
+
+- a senha é gravada **somente** como hash bcrypt (salt 10 — mesmo
+  `bcrypt.DefaultCost` do `auth` legado) na coluna `password_hash`;
+- o `passwordHash` não é exposto em nenhuma resposta: o `select` do repositório
+  nem lê a coluna nas buscas públicas (equivalente ao `sanitizeUser` do brain);
+- `role` **não** é aceito no corpo — o servidor aplica sempre `visitor`,
+  eliminando a escalação de privilégio que existia no `/register` legado (que
+  aceitava o `role` enviado pelo cliente);
+- senhas acima de 72 bytes são rejeitadas (limite do bcrypt, evita truncamento
+  silencioso) e o e-mail é normalizado (trim + lowercase) antes de validar;
+- nenhum log registra senha ou e-mail (apenas o `id` do usuário criado).
+
+```bash
+# criar usuário
+curl -i -X POST http://localhost:8081/users \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"novo@arthemis.test","password":"senha-forte-123"}'
+
+# buscar por id
+curl -i http://localhost:8081/users/<id>
+
+# conferir que a senha está em hash no banco (nunca texto limpo)
+docker exec arthemis-api-postgres psql -U arthemis_user -d arthemis_db \
+  -c "SELECT email, left(password_hash, 7) AS hash_prefix, role FROM users;"
+```
+
+`UsersService.findByEmail` existe para o futuro login (devolve o registro com o
+hash para o `bcrypt.compare`), mas **não** é exposto em HTTP para não permitir
+enumeração de e-mails.
+
+### Seed de desenvolvimento
+
+```bash
+npm run prisma:seed   # cria/atualiza admin@arthemis.local (role admin, senha default de dev: arthemis-dev-123)
+```
+
+Variáveis opcionais: `SEED_USER_EMAIL`, `SEED_USER_PASSWORD` e `SEED_USER_ROLE`
+(veja o `.env.example`). O seed é idempotente e recusa a senha default quando
+`NODE_ENV=production` sem `SEED_USER_PASSWORD` explícito.
+
 ## Scripts
 
 | Script                    | Descrição                                            |
@@ -127,9 +186,11 @@ O formato segue o contrato do `legacy/edge/services/auth/handlers/health.go`. O
 | `npm run build`           | Compila o projeto.                                   |
 | `npm test`                | Testes unitários (Vitest).                           |
 | `npm run test:e2e`        | Testes de contrato HTTP (sem banco).                 |
+| `npm run test:integration`| Testes com o PostgreSQL real (requer `docker compose up -d`). |
 | `npm run lint`            | oxlint.                                              |
 | `npm run format`          | Prettier.                                            |
 | `npm run prisma:generate` | Gera o Prisma Client em `src/generated/prisma`.      |
+| `npm run prisma:seed`     | Cria/atualiza o usuário de desenvolvimento (idempotente). |
 | `npm run db:migrate`      | Cria/aplica migrations em desenvolvimento.           |
 | `npm run db:push`         | Sincroniza o schema com o banco sem gerar migration. |
 
@@ -141,6 +202,13 @@ docker compose ps               # status + healthcheck
 docker compose logs -f postgres # logs
 docker compose down             # derruba (mantém o volume)
 docker compose down -v          # derruba e apaga o volume
+```
+
+Migrations e seed:
+
+```bash
+npm run db:migrate   # aplica/cria migrations em desenvolvimento
+npm run prisma:seed  # popula o usuário inicial de desenvolvimento
 ```
 
 Não há rede externa `arthemis-edge` nem serviço de aplicação no Compose: a
