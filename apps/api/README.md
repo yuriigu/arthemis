@@ -12,6 +12,7 @@ O que já existe:
 - `docker-compose.yml` apenas com o PostgreSQL 16.
 - `GET /healthcheck` com ping real no banco (200/503).
 - Módulo de usuários (`POST /users`, `GET /users/:id`) com hash bcrypt e seed inicial.
+- Módulo de autenticação (`POST /auth/login`, `GET /auth/me`) com JWT (HS256) e guard.
 
 ## Stack
 
@@ -40,6 +41,7 @@ apps/api
     ├── health/                   # GET /healthcheck (controller/service + contrato legado)
     ├── prisma/                   # PrismaModule/PrismaService (global)
     ├── users/                    # UsersModule/Controller/Service/Repository + DTOs
+    ├── auth/                     # AuthModule/Controller/Service + DTO, guard e estratégia JWT
     ├── app.module.ts
     └── main.ts                   # bootstrap (porta 8081, fail-fast)
 ```
@@ -74,6 +76,8 @@ npm run start:dev          # sobe a API em http://localhost:8081
 | `POSTGRES_USER`     | sim (Compose) | —              | Usuário criado no container.           |
 | `POSTGRES_PASSWORD` | sim (Compose) | —              | Senha do usuário.                      |
 | `POSTGRES_DB`       | sim (Compose) | —              | Nome do banco.                         |
+| `JWT_SECRET`        | **sim**       | —              | Segredo de assinatura HS256 do JWT (mínimo 32 caracteres). |
+| `JWT_EXPIRES_IN`    | não           | `24h`          | Validade do `access_token` (formato do `ms`: `15m`, `24h`, `7d`). |
 
 A validação (`src/config/env.validation.ts`) roda no boot: sem `DATABASE_URL` a
 aplicação encerra com erro em vez de subir sem banco — comportamento herdado do
@@ -163,9 +167,9 @@ docker exec arthemis-api-postgres psql -U arthemis_user -d arthemis_db \
   -c "SELECT email, left(password_hash, 7) AS hash_prefix, role FROM users;"
 ```
 
-`UsersService.findByEmail` existe para o futuro login (devolve o registro com o
-hash para o `bcrypt.compare`), mas **não** é exposto em HTTP para não permitir
-enumeração de e-mails.
+`UsersService.findByEmail` devolve o registro **com** o hash para o
+`bcrypt.compare` do `AuthService`, mas **não** é exposto em HTTP para não
+permitir enumeração de e-mails.
 
 ### Seed de desenvolvimento
 
@@ -176,6 +180,40 @@ npm run prisma:seed   # cria/atualiza admin@arthemis.local (role admin, senha de
 Variáveis opcionais: `SEED_USER_EMAIL`, `SEED_USER_PASSWORD` e `SEED_USER_ROLE`
 (veja o `.env.example`). O seed é idempotente e recusa a senha default quando
 `NODE_ENV=production` sem `SEED_USER_PASSWORD` explícito.
+
+## Autenticação
+
+Portabilidade do serviço `auth` legado (`legacy/edge/services/auth`): login com
+JWT **HS256**, claims `sub` (UUID do usuário), `email` e `role`, validade de
+`JWT_EXPIRES_IN` (default 24h — igual ao `exp` fixo do legado) e verificação do
+`Authorization: Bearer` pelo `JwtAuthGuard`/`JwtStrategy`.
+
+| Método | Rota         | Comportamento |
+| ------ | ------------ | ------------- |
+| `POST` | `/auth/login` | `200` com `{ "access_token": "..." }`; `400` corpo inválido; `401` credenciais inválidas |
+| `GET`  | `/auth/me`    | `200` com o perfil do usuário do token (sem hash); `401` sem token, inválido ou expirado |
+
+Regras herdadas do legado:
+
+- senha conferida com `bcrypt.compare` (hash custo 10 — mesmo custo do
+  `bcrypt.DefaultCost` do registro legado);
+- **resposta 401 uniforme** (`"Credenciais inválidas"`) para e-mail não
+  cadastrado e para senha errada: o `authenticateUser` do Go também respondia
+  401 indistinto para não revelar qual campo falhou;
+- token sem `sub`/`role`, assinado com outra chave, com algoritmo diferente de
+  HS256 ou expirado é rejeitado com `401` (como o `/validate` legado);
+- o `GET /auth/me` consulta o banco a partir do `sub` do token: papel e e-mail
+  sempre atualizados e o `passwordHash` jamais sai da camada de repositório.
+
+```bash
+# login
+curl -i -X POST http://localhost:8081/auth/login \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"admin@arthemis.local","password":"arthemis-dev-123"}'
+
+# rota protegida (troque <token> pelo access_token retornado acima)
+curl -i http://localhost:8081/auth/me -H 'Authorization: Bearer <token>'
+```
 
 ## Scripts
 
