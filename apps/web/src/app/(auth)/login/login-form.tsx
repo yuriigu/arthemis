@@ -3,17 +3,13 @@
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 
-import { api, ApiError, setAuthToken } from "@/lib/api";
+import { useAuth } from "@/contexts/AuthContext";
+import { ApiError } from "@/lib/api";
 
 /** Erros de validação por campo do formulário de login. */
 type FieldErrors = {
   email?: string;
   password?: string;
-};
-
-/** Resposta do `POST /auth/login` da API (contrato `AuthResponse`). */
-type LoginResponse = {
-  access_token: string;
 };
 
 /**
@@ -62,6 +58,7 @@ const inputInvalidClass =
  */
 export function LoginForm() {
   const router = useRouter();
+  const { login } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [errors, setErrors] = useState<FieldErrors>({});
@@ -79,17 +76,12 @@ export function LoginForm() {
       return;
     }
 
-    // 2) Requisição de autenticação (estado de loading habilitado).
+    // 2) A sessão é criada pelo Route Handler do Next, que grava o JWT no
+    // cookie HttpOnly; o componente nunca recebe o access_token.
     setIsSubmitting(true);
     try {
-      const { access_token } = await api.post<LoginResponse>("/auth/login", {
-        body: { email: email.trim(), password },
-        token: null,
-      });
-
-      setAuthToken(access_token);
-      // Mantém o botão desabilitado até a navegação concluir.
-      router.push("/");
+      await login({ email: email.trim(), password });
+      router.replace("/dashboard");
     } catch (error) {
       setIsSubmitting(false);
       if (error instanceof ApiError && (error.status === 401 || error.status === 400)) {
