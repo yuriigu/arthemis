@@ -32,5 +32,25 @@ export const envValidationSchema = z.object({
       /^postgres(ql)?:\/\//,
       'DATABASE_URL must be a valid postgresql:// connection string.',
     ),
-});
 
+  // Segredo do JWT (HS256) usado no login e na validação do Bearer token.
+  // Obrigatório e sem default de propósito: o auth legado abortava o boot
+  // quando `JWT_TOKEN` faltava (fail-fast) e um segredo fraco/desperdiçado
+  // permitiria forjar tokens. Gere um com: openssl rand -base64 48
+  JWT_SECRET: z
+    .string({
+      error: 'JWT_SECRET is required (copy .env.example to .env).',
+    })
+    .min(
+      32,
+      'JWT_SECRET must be at least 32 characters long (openssl rand -base64 48).',
+    ),
+
+  // Validade do access_token. Default 24h: mesma janela do `exp` fixo
+  // (time.Now().Add(24 * time.Hour)) do login legado.
+  JWT_EXPIRES_IN: z
+    .string({ error: 'JWT_EXPIRES_IN must be a string such as 24h or 7d.' })
+    .trim()
+    .min(1, 'JWT_EXPIRES_IN must not be empty.')
+    .default('24h'),
+});
