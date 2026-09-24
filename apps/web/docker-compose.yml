@@ -5,10 +5,9 @@
 # Produção: docker compose --profile prod up --build (serviço `web-prod`,
 # imagem multi-stage `runner` do Dockerfile).
 #
-# Integração com o backend: a rede `api-internal` é EXTERNA e é criada pelo
-# Compose da API (apps/api). Suba a API/banco antes (se ainda não estiverem
-# no ar):
-#   docker compose -f ../api/docker-compose.yml up -d
+# Integração com o backend: `api-internal` é EXTERNA e é criada pelo Compose
+# da API (PostgreSQL + NestJS). Suba o backend antes do frontend:
+#   docker compose -f ../api/docker-compose.yml up -d --build
 name: arthemis-web
 
 services:
@@ -24,6 +23,11 @@ services:
       - "3000:3000"
     environment:
       NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:3000/api}
+      API_INTERNAL_URL: ${API_INTERNAL_URL:-http://api:8081}
+    extra_hosts:
+      # Fallback para desenvolvimento com a API executada no host. Em Docker,
+      # o padrão é o serviço `api` do Compose do backend.
+      - "host.docker.internal:host-gateway"
     volumes:
       - .:/app
       - web_node_modules:/app/node_modules
@@ -45,6 +49,9 @@ services:
       - "3000:3000"
     environment:
       NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:3000/api}
+      API_INTERNAL_URL: ${API_INTERNAL_URL:-http://api:8081}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     restart: unless-stopped
     networks:
       - default

@@ -27,11 +27,18 @@ apps/web
 │   └── robots.txt             # asset legado
 └── src
     ├── app
-    │   ├── globals.css        # design tokens (paleta sage-green, shadcn, fontes, resets)
-    │   ├── layout.tsx         # fontes + metadata + classes base
+    │   ├── api/auth/            # proxy de login, perfil e logout
+    │   ├── (auth)/login/        # tela de login
+    │   ├── dashboard/           # rota privada de exemplo
+    │   ├── globals.css          # design tokens (paleta sage-green, shadcn, fontes, resets)
+    │   ├── layout.tsx           # fontes + metadata + AuthProvider
     │   └── page.tsx
-    └── lib
-        └── api.ts             # cliente HTTP (fetch) com NEXT_PUBLIC_API_URL + Bearer
+    ├── contexts/AuthContext.tsx # estado global de autenticação
+    ├── lib
+    │   ├── api.ts               # cliente HTTP público (fetch)
+    │   ├── api-server.ts        # cliente HTTP privado do Next → NestJS
+    │   └── auth/                # constantes e helpers server-side do cookie
+    └── middleware.ts             # proteção de rotas privadas
 ```
 
 ## Design tokens (portados do legado)
@@ -50,23 +57,40 @@ Observação: no Tailwind v4 as diretivas `@tailwind base/components/utilities` 
 cp .env.example .env.local
 ```
 
-| Variável             | Obrigatória | Default                     | Descrição                          |
-| -------------------- | ----------- | --------------------------- | ---------------------------------- |
-| `NEXT_PUBLIC_API_URL`| não         | `http://localhost:3000/api` | URL base do cliente HTTP (`src/lib/api.ts`). |
+| Variável              | Obrigatória | Default                     | Descrição |
+| --------------------- | ----------- | --------------------------- | --------- |
+| `NEXT_PUBLIC_API_URL`  | não         | `http://localhost:3000/api` | URL pública do proxy HTTP do frontend; é embutida no bundle. |
+| `API_INTERNAL_URL`     | não         | `http://localhost:8081`     | URL privada do NestJS, usada apenas pelo servidor Next. |
 
-## Cliente HTTP
+## Autenticação e sessão
+
+O formulário em `/login` chama `AuthContext.login()`. O contexto envia a requisição
+para `POST /api/auth/login` (Route Handler do Next), que encaminha as credenciais
+para `POST http://localhost:8081/auth/login` no backend e grava o JWT no cookie
+`arthemis_token`.
+
+- O cookie é `HttpOnly`, `SameSite=Lax`, `Path=/`, `Secure` quando a requisição é HTTPS (incluindo produção) e dura 24h.
+- O `access_token` não é salvo em `localStorage` nem devolvido ao JavaScript.
+- `GET /api/auth/me` valida o cookie no NestJS e retorna o perfil ao contexto.
+- `POST /api/auth/logout` remove o cookie e redireciona para `/login`.
+- `src/middleware.ts` protege `/dashboard` e `/usuarios`; `/login` redireciona
+  para `/dashboard` quando o cookie está presente.
+
+A API NestJS ainda não persiste `name`; o frontend usa o prefixo do e-mail como
+fallback até o contrato de perfil incluir esse campo.
 
 ```ts
-import { api, setAuthToken, ApiError } from "@/lib/api";
+import { api, ApiError } from "@/lib/api";
 
-setAuthToken(token);                       // persiste o Bearer em localStorage
 const users = await api.get<User[]>("/users");
 await api.post("/auth/login", { body: { email, password } });
+// Bearer explícito continua disponível para integrações server-side:
+await api.get("/users", { token });
 ```
 
-- Base: `NEXT_PUBLIC_API_URL` (sem barra final).
+- Base pública: `NEXT_PUBLIC_API_URL` (sem barra final).
 - Headers: `Accept` + `Content-Type: application/json` automáticos.
-- Bearer: token global (`setAuthToken`/`setTokenGetter`) ou por requisição (`{ token }`); `token: null` força sem token.
+- `credentials: "include"` é o padrão para incluir o cookie de sessão.
 - Erros fora de 2xx lançam `ApiError` com `status` e `body`.
 
 ## Desenvolvimento local
@@ -80,21 +104,28 @@ npm run lint       # ESLint
 
 ## Docker
 
-Pré-requisito: a rede externa do backend é criada pelo Compose da API (se o Postgres não estiver no ar):
+Pré-requisito: suba o Compose do backend primeiro. Ele cria a rede externa
+`arthemis-api_api-internal`, o PostgreSQL e o serviço NestJS (`api`):
 
 ```bash
-docker compose -f ../api/docker-compose.yml up -d   # cria arthemis-api_api-internal
+docker compose -f ../api/docker-compose.yml up -d --build
 ```
+
+O Compose do frontend usa `API_INTERNAL_URL=http://api:8081` por padrão. Se a API
+NestJS estiver rodando diretamente no host, use o override
+`API_INTERNAL_URL=http://host.docker.internal:8081`.
 
 ```bash
 # Desenvolvimento (hot-reload, bind mount, porta 3000)
 docker compose up -d
 
-# Produção (estágio runner do Dockerfile, standalone)
+# Produção (stágio runner do Dockerfile, standalone)
 docker compose --profile prod up -d --build web-prod
 
 docker compose down
 ```
 
-O serviço participa das redes `arthemis-web_default` e `arthemis-api_api-internal` (backend PostgreSQL/NestJS), permitindo alcançar o banco por `postgres:5432` a partir do container do frontend.
+O serviço do frontend participa das redes `arthemis-web_default` e
+`arthemis-api_api-internal`; a comunicação com a API containerizada é feita pelo
+nome `api:8081`.
 

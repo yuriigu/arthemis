@@ -28,7 +28,9 @@ CMD ["npm", "run", "dev", "--", "--hostname", "0.0.0.0", "--port", "3000"]
 FROM base AS build
 # NEXT_PUBLIC_* é embutida no bundle no momento do build.
 ARG NEXT_PUBLIC_API_URL=http://localhost:3000/api
-ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
+ARG API_INTERNAL_URL=http://localhost:8081
+ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL} \
+    API_INTERNAL_URL=${API_INTERNAL_URL}
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 RUN npm run build

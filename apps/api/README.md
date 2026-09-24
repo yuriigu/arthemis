@@ -9,7 +9,7 @@ O que já existe:
 - Esqueleto Nest.js rodando na porta **8081** (compatível com o gateway Traefik legado).
 - Validação de variáveis de ambiente no boot (fail-fast).
 - Prisma ORM configurado com driver adapter `pg` (model `User` + migration aplicada).
-- `docker-compose.yml` apenas com o PostgreSQL 16.
+- `docker-compose.yml` sobe o PostgreSQL 16 e a API NestJS containerizada, com migrations aplicadas no startup.
 - `GET /healthcheck` com ping real no banco (200/503).
 - Módulo de usuários (`POST /users`, `GET /users/:id`) com hash bcrypt e seed inicial.
 - Módulo de autenticação (`POST /auth/login`, `GET /auth/me`) com JWT (HS256) e guard.
@@ -235,9 +235,10 @@ curl -i http://localhost:8081/auth/me -H 'Authorization: Bearer <token>'
 ## Banco de dados
 
 ```bash
-docker compose up -d            # sobe o container
-docker compose ps               # status + healthcheck
-docker compose logs -f postgres # logs
+docker compose up -d --build   # sobe PostgreSQL + API NestJS
+docker compose ps               # status + healthcheck do PostgreSQL
+docker compose logs -f api      # logs da aplicação
+docker compose logs -f postgres # logs do banco
 docker compose down             # derruba (mantém o volume)
 docker compose down -v          # derruba e apaga o volume
 ```
@@ -249,5 +250,8 @@ npm run db:migrate   # aplica/cria migrations em desenvolvimento
 npm run prisma:seed  # popula o usuário inicial de desenvolvimento
 ```
 
-Não há rede externa `arthemis-edge` nem serviço de aplicação no Compose: a
-integração com o Traefik/gateway fica para a task de deploy.
+O Compose do backend é a infraestrutura de desenvolvimento integrada: o serviço
+`postgres` fornece o banco e o serviço `api` roda NestJS na mesma rede
+`arthemis-api_api-internal`. O frontend em `apps/web` participa dessa rede e usa
+`API_INTERNAL_URL=http://api:8081` por padrão. A aplicação aplica
+`prisma migrate deploy` antes de iniciar o servidor NestJS.

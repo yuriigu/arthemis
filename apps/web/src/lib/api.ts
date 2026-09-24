@@ -4,8 +4,9 @@
  * - Usa `fetch` nativo (sem dependências externas).
  * - Base: variável de ambiente `NEXT_PUBLIC_API_URL`.
  * - Headers comuns: `Accept`/`Content-Type: application/json`.
- * - Suporte a token Bearer por requisição (`token`) ou global
- *   (`setAuthToken`, persistido em localStorage) / `setTokenGetter`.
+ * - Suporte a token Bearer por requisição (`token`) ou por `setTokenGetter`
+ *   para integrações server-side. A sessão web usa o cookie HTTP-only
+ *   `arthemis_token` e não persiste JWT em `localStorage`.
  */
 
 const DEFAULT_API_URL = "http://localhost:3000/api";
@@ -15,38 +16,16 @@ export const API_BASE_URL = (
   process.env.NEXT_PUBLIC_API_URL ?? DEFAULT_API_URL
 ).replace(/\/+$/, "");
 
-const TOKEN_STORAGE_KEY = "arthemis:access-token";
-
 type TokenGetter = () => string | null;
 
-function defaultTokenGetter(): TokenGetter {
-  return () => {
-    if (typeof window === "undefined") return null;
-    try {
-      return window.localStorage.getItem(TOKEN_STORAGE_KEY);
-    } catch {
-      return null;
-    }
-  };
-}
+/**
+ * A sessão normal não expõe o token ao JavaScript. Este getter permanece
+ * disponível para chamadas server-side ou integrações que precisem fornecer
+ * um Bearer explicitamente.
+ */
+let tokenGetter: TokenGetter = () => null;
 
-let tokenGetter: TokenGetter = defaultTokenGetter();
-
-/** Define o token Bearer persistido (passe `null` para limpar o token). */
-export function setAuthToken(token: string | null): void {
-  if (typeof window === "undefined") return;
-  try {
-    if (token === null) {
-      window.localStorage.removeItem(TOKEN_STORAGE_KEY);
-    } else {
-      window.localStorage.setItem(TOKEN_STORAGE_KEY, token);
-    }
-  } catch {
-    // localStorage indisponível (SSR/mode privado) — ignora silenciosamente.
-  }
-}
-
-/** Lê o token Bearer persistido. */
+/** Lê o token Bearer fornecido pela estratégia atual. */
 export function getAuthToken(): string | null {
   return tokenGetter();
 }
@@ -103,6 +82,7 @@ export async function request<T>(
 
   const response = await fetch(resolveUrl(path), {
     ...rest,
+    credentials: rest.credentials ?? "include",
     headers: finalHeaders,
     body:
       body === undefined

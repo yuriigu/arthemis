@@ -1,8 +1,11 @@
 import type { Metadata } from "next";
+import type { ReactNode } from "react";
 
 // Fontes do projeto legado, self-hosted (mesmos pacotes do /legacy)
 import "@fontsource-variable/instrument-sans";
 import "@fontsource-variable/lora";
+
+import { AuthProvider } from "@/contexts/AuthContext";
 
 import "./globals.css";
 
@@ -17,11 +20,11 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="pt-BR" className="h-full">
       <body className="flex min-h-full flex-col bg-background font-sans text-foreground antialiased">
-        {children}
+        <AuthProvider>{children}</AuthProvider>
       </body>
     </html>
   );
