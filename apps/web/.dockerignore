@@ -1,0 +1,23 @@
+# Dependências e builds (instalados/gerados dentro da imagem)
+node_modules
+.next
+out
+build
+coverage
+*.tsbuildinfo
+
+# Segredos/ambiente locais (NEXT_PUBLIC_* entra via build arg)
+.env
+.env.*
+!.env.example
+
+# Arquivos que não precisam entrar na imagem
+.git
+.gitignore
+README.md
+Dockerfile
+.dockerignore
+docker-compose.yml
+.vscode
+.idea
+*.log
