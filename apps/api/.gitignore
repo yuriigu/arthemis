@@ -1,0 +1,14 @@
+# Dependencias
+node_modules
+
+# Build
+/dist
+*.tsbuildinfo
+
+# Variaveis de ambiente (o .env.example e versionado de proposito)
+.env
+.env.*
+!.env.example
+
+# Client gerado pelo Prisma (`npm run prisma:generate`)
+/src/generated/prisma
