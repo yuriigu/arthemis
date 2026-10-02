@@ -3,17 +3,29 @@
 FROM node:24-bookworm-slim AS base
 WORKDIR /app
 ENV NODE_ENV=production \
-    PORT=3001 \
+    PORT=8081 \
     HOSTNAME=0.0.0.0 \
     NEXT_TELEMETRY_DISABLED=1
+# `procps` fornece o `ps`, exigido pelo tree-kill do `nest start --watch` para
+# reiniciar o app sem EADDRINUSE em containers mínimos (nest-cli#484).
 RUN apt-get update \
-    && apt-get install --no-install-recommends -y openssl ca-certificates \
+    && apt-get install --no-install-recommends -y openssl ca-certificates procps \
     && rm -rf /var/lib/apt/lists/*
 
 FROM base AS deps
 ENV NODE_ENV=development
 COPY package.json package-lock.json ./
 RUN npm ci
+
+# Estágio de desenvolvimento com hot-reload (usado pelo docker-compose.yml da
+# raiz). O código-fonte é bind-mounted pelo Compose; o `prisma generate` e as
+# migrations rodam no start porque o client gerado não é versionado.
+FROM deps AS dev
+ENV NODE_ENV=development
+COPY prisma.config.ts nest-cli.json tsconfig*.json ./
+COPY prisma ./prisma
+EXPOSE 8081
+CMD ["sh", "-c", "npx prisma generate && npx prisma migrate deploy && npm run start:dev"]
 
 FROM deps AS build
 # O comando do Prisma 7 usa a configuração em prisma.config.ts. A URL abaixo
@@ -34,5 +46,5 @@ COPY --from=build /app/prisma ./prisma
 COPY --from=deps /app/package.json ./package.json
 COPY --from=build /app/prisma.config.ts ./prisma.config.ts
 USER node
-EXPOSE 3001
+EXPOSE 8081
 CMD ["sh", "-c", "npx prisma migrate deploy && node dist/main.js"]
