@@ -1,0 +1,189 @@
+# Orquestração local unificada do monorepo Arthemis.
+#
+# Sobe o ecossistema completo (PostgreSQL + NestJS + Next.js) com um único
+# comando:
+#
+#   docker compose up --build
+#
+# O padrão é o modo DESENVOLVIMENTO: backend e frontend usam os estágios `dev`
+# dos Dockerfiles com bind mount do código-fonte, então alterações em
+# `apps/api/src` e `apps/web/src` refletem em tempo real (hot-reload).
+#
+# Produção (imagens `runner`, sem bind mount), informando os serviços
+# explicitamente para não colidir portas com os serviços de dev:
+#
+#   docker compose --profile prod up -d --build backend-prod frontend-prod
+name: arthemis
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: arthemis-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-arthemis_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-arthemis_password}
+      POSTGRES_DB: ${POSTGRES_DB:-arthemis_db}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - arthemis
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${POSTGRES_USER:-arthemis_user} -d ${POSTGRES_DB:-arthemis_db}",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
+
+  backend:
+    build:
+      context: ./apps/api
+      dockerfile: Dockerfile
+      target: dev
+    container_name: arthemis-backend
+    restart: unless-stopped
+    environment:
+      NODE_ENV: ${NODE_ENV:-development}
+      PORT: 8081
+      SERVICE_NAME: ${SERVICE_NAME:-arthemis-api}
+      DATABASE_URL: "postgresql://${POSTGRES_USER:-arthemis_user}:${POSTGRES_PASSWORD:-arthemis_password}@db:5432/${POSTGRES_DB:-arthemis_db}?schema=public"
+      JWT_SECRET: ${JWT_SECRET:-arthemis-dev-only-jwt-secret-change-me-9f4b7e2a-0123456789}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-24h}
+    ports:
+      # Porta interna fixa (8081); a porta do host é configurável via API_PORT.
+      - "${API_PORT:-8081}:8081"
+    volumes:
+      # Hot-reload: o código do host substitui o do container.
+      - ./apps/api:/app
+      # Preserva as dependências instaladas na imagem (não são sobrescritas
+      # pelo bind mount e não dependem do host ter node_modules).
+      - backend_node_modules:/app/node_modules
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - arthemis
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:8081/healthcheck').then((response) => process.exit(response.ok ? 0 : 1)).catch(() => process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      # Margem para `prisma generate` + `migrate deploy` + primeiro `tsc` watch.
+      start_period: 120s
+
+  frontend:
+    build:
+      context: ./apps/web
+      dockerfile: Dockerfile
+      target: dev
+    container_name: arthemis-frontend
+    restart: unless-stopped
+    environment:
+      NODE_ENV: ${NODE_ENV:-development}
+      # URL pública (browser) → proxy /api do próprio Next.
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:3000/api}
+      # URL privada (server-side do Next) → backend na rede interna.
+      API_INTERNAL_URL: http://backend:8081
+      PORT: 3000
+      HOSTNAME: 0.0.0.0
+    ports:
+      - "3000:3000"
+    volumes:
+      # Hot-reload do frontend.
+      - ./apps/web:/app
+      - frontend_node_modules:/app/node_modules
+      - frontend_next_cache:/app/.next
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - arthemis
+
+  # -------------------------------------------------------------------------
+  # Perfil `prod`: imagens `runner` (standalone), sem bind mount de código.
+  # Suba informando os serviços para não colidir com os serviços de dev:
+  #   docker compose --profile prod up -d --build backend-prod frontend-prod
+  # -------------------------------------------------------------------------
+  backend-prod:
+    profiles: ["prod"]
+    build:
+      context: ./apps/api
+      dockerfile: Dockerfile
+      target: runner
+    container_name: arthemis-backend-prod
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 8081
+      SERVICE_NAME: ${SERVICE_NAME:-arthemis-api}
+      DATABASE_URL: "postgresql://${POSTGRES_USER:-arthemis_user}:${POSTGRES_PASSWORD:-arthemis_password}@db:5432/${POSTGRES_DB:-arthemis_db}?schema=public"
+      JWT_SECRET: ${JWT_SECRET:-arthemis-dev-only-jwt-secret-change-me-9f4b7e2a-0123456789}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-24h}
+    ports:
+      - "${API_PORT:-8081}:8081"
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - arthemis
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:8081/healthcheck').then((response) => process.exit(response.ok ? 0 : 1)).catch(() => process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  frontend-prod:
+    profiles: ["prod"]
+    build:
+      context: ./apps/web
+      dockerfile: Dockerfile
+      target: runner
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:3000/api}
+        API_INTERNAL_URL: http://backend-prod:8081
+    container_name: arthemis-frontend-prod
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:3000/api}
+      API_INTERNAL_URL: http://backend-prod:8081
+      PORT: 3000
+      HOSTNAME: 0.0.0.0
+    ports:
+      - "3000:3000"
+    depends_on:
+      backend-prod:
+        condition: service_healthy
+    networks:
+      - arthemis
+
+volumes:
+  postgres_data:
+    name: arthemis_postgres_data
+  backend_node_modules:
+  frontend_node_modules:
+  frontend_next_cache:
+
+networks:
+  arthemis:
+    name: arthemis
+    driver: bridge
