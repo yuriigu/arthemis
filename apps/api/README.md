@@ -8,11 +8,12 @@ O que já existe:
 
 - Esqueleto Nest.js rodando na porta **8081** (compatível com o gateway Traefik legado).
 - Validação de variáveis de ambiente no boot (fail-fast).
-- Prisma ORM configurado com driver adapter `pg` (model `User` + migration aplicada).
+- Prisma ORM configurado com driver adapter `pg` (models `User`, `Proponent`, `Project`, `ProjectProponent`, `Sdg` e `ProjectSdg` + migrations aplicadas).
 - `docker-compose.yml` sobe o PostgreSQL 16 e a API NestJS containerizada, com migrations aplicadas no startup.
 - `GET /healthcheck` com ping real no banco (200/503).
 - Módulo de usuários (`POST /users`, `GET /users/:id`) com hash bcrypt e seed inicial.
 - Módulo de autenticação (`POST /auth/login`, `GET /auth/me`) com JWT (HS256) e guard.
+- Modelagem de proponentes, projetos e ODS (migration `add_proponent_project_sdg_models`) com UUID, soft delete e seed dos 17 ODS.
 
 ## Stack
 
@@ -29,9 +30,9 @@ O que já existe:
 
 ```text
 apps/api
-├── prisma/schema.prisma          # model User (tabela `users`) + generator/datasource
-├── prisma/migrations/            # migration create_users_table (aplicada)
-├── prisma/seed.ts                # seed de desenvolvimento (usuário inicial)
+├── prisma/schema.prisma          # models User/Proponent/Project/ProjectProponent/Sdg/ProjectSdg + generator/datasource
+├── prisma/migrations/            # create_users_table + add_proponent_project_sdg_models (aplicadas)
+├── prisma/seed.ts                # seed idempotente: 17 ODS + usuário inicial
 ├── prisma.config.ts              # config do Prisma CLI: schema, migrations, seed e DATABASE_URL
 ├── docker-compose.yml            # somente o PostgreSQL 16
 ├── .env.example                  # modelo das variáveis de ambiente
@@ -180,6 +181,60 @@ npm run prisma:seed   # cria/atualiza admin@arthemis.local (role admin, senha de
 Variáveis opcionais: `SEED_USER_EMAIL`, `SEED_USER_PASSWORD` e `SEED_USER_ROLE`
 (veja o `.env.example`). O seed é idempotente e recusa a senha default quando
 `NODE_ENV=production` sem `SEED_USER_PASSWORD` explícito.
+
+## Proponentes, projetos e ODS
+
+Modelagem de domínio portada do legado (`legacy/brain/internal/models`, tabelas
+criadas pelo `AutoMigrate` do gorm) e consumida pelo
+`legacy/watcher/internal/models/brain.go`. As tabelas mantêm os **nomes físicos
+do legado** (`@@map`), usam **UUID** como PK e **soft delete** (`deleted_at`) em
+todas as entidades de domínio. Os relacionamentos são bidirecionais.
+
+| Model             | Tabela               | Observações                                                                 |
+| ----------------- | -------------------- | --------------------------------------------------------------------------- |
+| `Proponent`       | `proponents`         | organização proponente (`name`, `email`).                                   |
+| `Project`         | `projects`           | `proponent_id` (FK), `name` varchar(150), `lifetime_start/end` (`date`), `justification`. |
+| `ProjectProponent`| `project_proponents` | N:N projeto↔proponente com `role`; unique `(project_id, proponent_id)`.     |
+| `Sdg`             | `sdgs`               | ODS da ONU: `number` **único** (1..17), `name`, `icon_url`.                 |
+| `ProjectSdg`      | `project_sdg`        | N:N projeto↔ODS; unique `(project_id, sdg_id)`.                             |
+
+O model `User` ganhou, com paridade ao legado
+(`legacy/brain/internal/models/user.go`):
+
+- `username` (varchar(150), **único**) — opcional no banco porque o `POST /users`
+  atual cria o usuário só com e-mail/senha;
+- `proponent_id` → `proponents.id`, o relacionamento **opcional** `User -> Proponent`
+  (`ON DELETE SET NULL`).
+
+### Seed dos ODS
+
+O mesmo `npm run prisma:seed` popula os **17 Objetivos de Desenvolvimento
+Sustentável** da ONU (`sdgs`) com `upsert` pela chave natural `number`:
+
+```bash
+npm run prisma:seed
+# [seed] sdgs ready: 17 ODS (idempotente)
+# [seed] user ready: { ... }
+```
+
+Rodar quantas vezes for preciso não duplica registros. As URLs dos ícones
+apontam para a arte oficial da ONU publicada pelo projeto
+[open-sdg](https://open-sdg.org/sdg-translations/icons/) (as URLs diretas do
+`un.org` não são estáveis/hotlinkáveis).
+
+### Migrations e testes do schema
+
+```bash
+npm run db:migrate          # cria/aplica migrations em desenvolvimento (prisma migrate dev)
+npx prisma migrate deploy   # aplica as migrations pendentes (também usado no startup)
+npm run prisma:generate     # regenera o Prisma Client em src/generated/prisma
+npm run test:integration    # test/prisma.integration-spec.ts (+ users/auth)
+```
+
+`test/prisma.integration-spec.ts` valida: migrations aplicando em **banco limpo
+sem erro de FK/constraint** (schema descartável + `prisma migrate deploy`), as
+uniques compostas e a FK `users.proponent_id`, a associação `User <-> Proponent`
+com leitura do `username` e a idempotência do seed (17 ODS após duas execuções).
 
 ## Autenticação
 
