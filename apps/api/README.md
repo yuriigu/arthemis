@@ -14,6 +14,7 @@ O que já existe:
 - Módulo de usuários (`POST /users`, `GET /users/:id`) com hash bcrypt e seed inicial.
 - Módulo de autenticação (`POST /auth/login`, `GET /auth/me`) com JWT (HS256) e guard.
 - Modelagem de proponentes, projetos e ODS (migration `add_proponent_project_sdg_models`) com UUID, soft delete e seed dos 17 ODS.
+- Módulo de proponentes (`/proponents`) com CRUD, listagem para seletores, unicidade de e-mail (409), soft delete bloqueado por vínculos (409) e `JwtAuthGuard`.
 
 ## Stack
 
@@ -43,6 +44,7 @@ apps/api
     ├── prisma/                   # PrismaModule/PrismaService (global)
     ├── users/                    # UsersModule/Controller/Service/Repository + DTOs
     ├── auth/                     # AuthModule/Controller/Service + DTO, guard e estratégia JWT
+    ├── modules/proponents/       # ProponentsModule/Controller/Service/Repository + DTOs (CRUD + seletores)
     ├── app.module.ts
     └── main.ts                   # bootstrap (porta 8081, fail-fast)
 ```
@@ -269,6 +271,64 @@ curl -i -X POST http://localhost:8081/auth/login \
 # rota protegida (troque <token> pelo access_token retornado acima)
 curl -i http://localhost:8081/auth/me -H 'Authorization: Bearer <token>'
 ```
+
+## Proponentes (CRUD + seletores)
+
+Portabilidade do `ProponentHandler` legado
+(`legacy/brain/internal/handlers/proponent.go`) para a arquitetura em camadas
+(`src/modules/proponents`), com as regras de negócio que o legado não tinha. O
+recurso é `/proponents` (plural, REST) e **todas as rotas exigem Bearer válido**
+(`JwtAuthGuard`) — no legado o gateway Traefik fazia o `forwardAuth`.
+
+| Método   | Rota                  | Sucesso                                                     | Erros                                                            |
+| -------- | --------------------- | ----------------------------------------------------------- | ---------------------------------------------------------------- |
+| `GET`    | `/proponents?search=` | `200` lista (array puro, sem paginação; `200 []` se vazia)   | `400` query fora do contrato; `401`                              |
+| `POST`   | `/proponents`         | `201` proponente criado                                      | `400` corpo inválido; `401`; `409` e-mail duplicado              |
+| `GET`    | `/proponents/:id`     | `200` proponente                                             | `400` id não-UUID; `401`; `404`                                  |
+| `PATCH`  | `/proponents/:id`     | `200` proponente atualizado (`PartialType` do DTO de criação) | `400`; `401`; `404`; `409` e-mail duplicado                      |
+| `DELETE` | `/proponents/:id`     | `204` (soft delete via `deleted_at`)                        | `400`; `401`; `404`; `409` projetos/usuários vinculados          |
+
+Regras de negócio:
+
+- **e-mail único**: `POST`/`PATCH` respondem `409 Conflict` quando já existe
+  proponente **ativo** com o mesmo e-mail (normalizado com `trim + lowercase`). O
+  `email` do schema **não** é `unique` (paridade com o gorm legado, que só exigia
+  `not null`), então a checagem é feita na camada de serviço; o e-mail de um
+  proponente excluído logicamente pode ser reaproveitado;
+- **listagem para seletores**: `GET /proponents` devolve um **array puro** (sem
+  paginação) apenas com registros ativos, ordenado por `name`, e aceita
+  `?search=` para filtrar por trecho do nome (case-insensitive, `ILIKE`). Sem
+  registros: `200 []`;
+- **política de exclusão**: `DELETE` aplica **soft delete** (`deleted_at`) e
+  responde `409 Conflict` quando ainda existem **projetos ativos**
+  (`projects.deleted_at IS NULL`) ou **usuários vinculados** (`users.proponent_id`)
+  — o legado apagava o proponente e deixava projeto órfão, já que a FK não existia;
+- o `deletedAt` nunca aparece na resposta (`select` público + `WHERE deleted_at IS
+  NULL` no repositório).
+
+```bash
+TOKEN=$(curl -s -X POST http://localhost:8081/auth/login \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"admin@arthemis.local","password":"arthemis-dev-123"}' \
+  | sed -E 's/.*"access_token":"([^"]+)".*/\1/')
+
+# listagem para seletor (sem registros => 200 [])
+curl -i http://localhost:8081/proponents -H "Authorization: Bearer $TOKEN"
+
+# criação (409 se o e-mail já existir)
+curl -i -X POST http://localhost:8081/proponents \
+  -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+  -d '{"name":"Instituto Arthemis","email":"contato@arthemis.test"}'
+
+# exclusão lógica (409 se houver projeto/usuário vinculado)
+curl -i -X DELETE http://localhost:8081/proponents/<id> \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+Testes do módulo: `src/modules/proponents/*.spec.ts` (unitários do
+service/repository), `test/proponents.e2e-spec.ts` (contrato HTTP + guard, sem
+banco) e `test/proponents.integration-spec.ts` (soft delete e travas de vínculo
+no Postgres real).
 
 ## Scripts
 

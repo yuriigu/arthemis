@@ -5,6 +5,7 @@ import { AppService } from './app.service.js';
 import { AuthModule } from './auth/auth.module.js';
 import { envValidationSchema } from './config/env.validation.js';
 import { HealthModule } from './health/health.module.js';
+import { ProponentsModule } from './modules/proponents/proponents.module.js';
 import { PrismaModule } from './prisma/prisma.module.js';
 import { UsersModule } from './users/users.module.js';
 
@@ -22,6 +23,8 @@ import { UsersModule } from './users/users.module.js';
     PrismaModule,
     HealthModule,
     UsersModule,
+    // Módulo de proponentes: CRUD + listagem para seletores, com JwtAuthGuard.
+    ProponentsModule,
     // AuthModule depois do UsersModule: importa UsersModule para o login
     // reutilizar o findByEmail (bcrypt.compare) e registra o JwtModule.
     AuthModule,
