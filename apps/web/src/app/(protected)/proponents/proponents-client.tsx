@@ -1,7 +1,7 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
@@ -29,17 +29,20 @@ export function ProponentsClient() {
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [editing, setEditing] = useState<Proponent | null | undefined>();
+  const latestRequest = useRef(0);
 
   async function loadProponents(query = search): Promise<void> {
+    const request = ++latestRequest.current;
     setIsLoading(true);
     setLoadError(false);
     try {
       const suffix = query.trim() ? `?search=${encodeURIComponent(query.trim())}` : "";
-      setProponents(await api.get<Proponent[]>(`/proponents${suffix}`));
+      const result = await api.get<Proponent[]>(`/proponents${suffix}`);
+      if (request === latestRequest.current) setProponents(result);
     } catch {
-      setLoadError(true);
+      if (request === latestRequest.current) setLoadError(true);
     } finally {
-      setIsLoading(false);
+      if (request === latestRequest.current) setIsLoading(false);
     }
   }
 
@@ -161,6 +164,7 @@ function ProponentForm({
   onClose: () => void;
   onSaved: () => Promise<void>;
 }) {
+  const dialog = useRef<HTMLDialogElement>(null);
   const {
     register,
     handleSubmit,
@@ -169,6 +173,10 @@ function ProponentForm({
     resolver: zodResolver(proponentSchema),
     defaultValues: { name: proponent?.name ?? "", email: proponent?.email ?? "" },
   });
+
+  useEffect(() => {
+    if (dialog.current && !dialog.current.open) dialog.current.showModal();
+  }, []);
 
   async function submit(data: ProponentFormData): Promise<void> {
     try {
@@ -189,13 +197,19 @@ function ProponentForm({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" role="dialog" aria-modal="true" aria-labelledby="proponent-form-title">
-      <form onSubmit={handleSubmit(submit)} className="w-full max-w-lg rounded-xl bg-card p-6 shadow-xl">
+    <dialog
+      ref={dialog}
+      onClose={onClose}
+      onCancel={(event) => isSubmitting && event.preventDefault()}
+      aria-labelledby="proponent-form-title"
+      className="m-auto w-[calc(100%-2rem)] max-w-lg rounded-xl bg-card p-0 text-foreground shadow-xl backdrop:bg-black/50"
+    >
+      <form onSubmit={handleSubmit(submit)} className="p-6">
         <div className="mb-6 flex items-start justify-between gap-4">
           <h2 id="proponent-form-title" className="text-2xl">
             {proponent ? "Editar proponente" : "Novo proponente"}
           </h2>
-          <button type="button" onClick={onClose} disabled={isSubmitting} aria-label="Fechar" className="rounded-md px-2 py-1 text-xl hover:bg-accent disabled:opacity-50">
+          <button type="button" onClick={() => dialog.current?.close()} disabled={isSubmitting} aria-label="Fechar" className="rounded-md px-2 py-1 text-xl hover:bg-accent disabled:opacity-50">
             ×
           </button>
         </div>
@@ -214,7 +228,7 @@ function ProponentForm({
         </div>
 
         <div className="mt-6 flex justify-end gap-3">
-          <button type="button" onClick={onClose} disabled={isSubmitting} className="rounded-lg border border-border px-4 py-2 font-medium hover:bg-accent disabled:opacity-50">
+          <button type="button" onClick={() => dialog.current?.close()} disabled={isSubmitting} className="rounded-lg border border-border px-4 py-2 font-medium hover:bg-accent disabled:opacity-50">
             Cancelar
           </button>
           <button type="submit" disabled={isSubmitting} className="rounded-lg bg-primary px-4 py-2 font-medium text-primary-foreground hover:opacity-90 disabled:opacity-50">
@@ -222,6 +236,6 @@ function ProponentForm({
           </button>
         </div>
       </form>
-    </div>
+    </dialog>
   );
 }
