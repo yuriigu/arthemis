@@ -6,7 +6,7 @@ import {
   LOGIN_PATH,
 } from "@/lib/auth/constants";
 
-const PRIVATE_PREFIXES = ["/dashboard", "/usuarios", "/projects"];
+const PRIVATE_PREFIXES = ["/dashboard", "/usuarios", "/projects", "/proponents"];
 
 function isPrivateRoute(pathname: string): boolean {
   return PRIVATE_PREFIXES.some(
@@ -39,5 +39,5 @@ export function middleware(request: NextRequest): NextResponse {
 }
 
 export const config = {
-  matcher: ["/login", "/dashboard/:path*", "/usuarios/:path*", "/projects/:path*"],
+  matcher: ["/login", "/dashboard/:path*", "/usuarios/:path*", "/projects/:path*", "/proponents/:path*"],
 };
