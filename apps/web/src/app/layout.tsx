@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
+import { Toaster } from "sonner";
 
 // Fontes do projeto legado, self-hosted (mesmos pacotes do /legacy)
 import "@fontsource-variable/instrument-sans";
@@ -25,8 +26,8 @@ export default function RootLayout({ children }: { children: ReactNode }) {
     <html lang="pt-BR" className="h-full">
       <body className="flex min-h-full flex-col bg-background font-sans text-foreground antialiased">
         <AuthProvider>{children}</AuthProvider>
+        <Toaster richColors position="top-right" />
       </body>
     </html>
   );
 }
-

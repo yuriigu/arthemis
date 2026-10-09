@@ -1,6 +1,12 @@
 // Schema Prisma da API do Arthemis.
 //
 // A connection string fica em prisma.config.ts, seguindo o padrão do Prisma 7.
+//
+// Modelagem herdada de `legacy/brain/internal/models/*.go` (tabelas criadas pelo
+// `AutoMigrate` do gorm) e consumida pelo `legacy/watcher/internal/models/brain.go`.
+// As decisões de modernização (UUID no lugar de uint, `created_at/updated_at/
+// deleted_at` explícitos no lugar do `gorm.Model`) estão documentadas em cada
+// model. Os nomes físicos das tabelas continuam iguais aos do legado via `@@map`.
 
 generator client {
   provider = "prisma-client"
@@ -21,16 +27,161 @@ datasource db {
 ///   (admin | manager | visitor), igual ao `check:role IN (...)` do gorm;
 /// - hash de senha em varchar(255) (o bcrypt produz 60 caracteres).
 ///
-/// Fora do escopo desta task (chegam depois): `proponent_id` (depende do model
-/// Proponent) e `username` (substituído pelo e-mail como identidade).
+/// Campos reativados por esta task, com paridade ao legado:
+/// - `username` em varchar(150) único (o `Username` do gorm). É **opcional** no
+///   banco porque o `POST /users` atual cria o usuário apenas com e-mail/senha e
+///   o seed de desenvolvimento não informa username; assim o fluxo existente
+///   continua válido. A unicidade é a mesma do legado (uniqueIndex);
+/// - `proponentId` com o relacionamento `User -> Proponent`.
+///
+/// Diferença consciente do legado: lá `ProponentID` era `not null` com
+/// `OnDelete:CASCADE`; aqui o relacionamento é **opcional** (requisito da task),
+/// então a FK usa `onDelete: SetNull` para não apagar o usuário quando o
+/// proponente for removido.
+///
+/// Sem soft delete de propósito: o `User` legado **não** embute `gorm.Model`
+/// (`ID`/`Email`/`Role` são declarados direto na struct), logo não havia
+/// `deleted_at`. Manter a paridade estrita = não adicionar `deletedAt` aqui.
 model User {
-  id           String   @id @default(uuid()) @db.Uuid
-  email        String   @unique @db.VarChar(150)
-  passwordHash String   @map("password_hash") @db.VarChar(255)
-  role         String   @default("visitor") @db.VarChar(20)
-  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+  id           String     @id @default(uuid()) @db.Uuid
+  username     String?    @unique @db.VarChar(150)
+  email        String     @unique @db.VarChar(150)
+  passwordHash String     @map("password_hash") @db.VarChar(255)
+  role         String     @default("visitor") @db.VarChar(20)
+  proponentId  String?    @map("proponent_id") @db.Uuid
+  proponent    Proponent? @relation(fields: [proponentId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  createdAt    DateTime   @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt    DateTime   @updatedAt @map("updated_at") @db.Timestamptz(3)
 
+  @@index([proponentId])
   @@map("users")
 }
 
+/// Organização proponente de um projeto (tabela `proponents` do legado, criada
+/// a partir de `BrainProponent`/`models.Proponent`).
+///
+/// - PK em UUID (era o `uint` do gorm);
+/// - `name`/`email` sem tamanho no gorm (`text`) — mantidos como `Text` por
+///   paridade; `email` **não** é único (o legado só exigia `not null`);
+/// - soft delete (`deletedAt`) + `createdAt`/`updatedAt`, equivalentes ao
+///   `gorm.Model` (CreatedAt/UpdatedAt/DeletedAt).
+model Proponent {
+  id        String    @id @default(uuid()) @db.Uuid
+  name      String    @db.Text
+  email     String    @db.Text
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(3)
+
+  projects          Project[]
+  projectProponents ProjectProponent[]
+  users             User[]
+
+  @@map("proponents")
+}
+
+/// Projeto socioambiental (tabela `projects` do legado, criada a partir de
+/// `BrainProject`/`models.Project`).
+///
+/// - PK em UUID (era o `uint` do gorm);
+/// - `name` em varchar(150) `not null` (igual ao gorm);
+/// - `lifetime_start`/`lifetime_end` em `date` (o gorm declarava `type:date`);
+/// - `justification` em `text`;
+/// - soft delete (`deletedAt`) + timestamps equivalentes ao `gorm.Model`.
+///
+/// Diferença consciente do legado: lá `ProponentID` era `not null` sem FK
+/// explícita. Aqui a FK para `proponents` é `onDelete: Restrict` para impedir
+/// apagar um proponente que ainda tem projetos (o legado não tinha FK e podia
+/// deixar projeto órfão).
+model Project {
+  id            String    @id @default(uuid()) @db.Uuid
+  proponentId   String    @map("proponent_id") @db.Uuid
+  name          String    @db.VarChar(150)
+  lifetimeStart DateTime? @map("lifetime_start") @db.Date
+  lifetimeEnd   DateTime? @map("lifetime_end") @db.Date
+  justification String?   @db.Text
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt     DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt     DateTime? @map("deleted_at") @db.Timestamptz(3)
+
+  proponent         Proponent          @relation(fields: [proponentId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  projectProponents ProjectProponent[]
+  projectSdgs       ProjectSdg[]
+
+  @@index([proponentId])
+  @@map("projects")
+}
+
+/// Vínculo N:N entre projeto e proponente com o papel exercido (tabela
+/// `project_proponents` do legado, de `models.ProjectProponent`).
+///
+/// - PK em UUID (era o `uint` do gorm) e unique composta `(projectId,
+///   proponentId)` — o requisito de não repetir o mesmo par no projeto;
+/// - `role` em varchar(50) (igual ao gorm);
+/// - soft delete (`deletedAt`) + timestamps (paridade com o `gorm.Model`).
+///
+/// FKs em `onDelete: Cascade`: o vínculo não faz sentido sem o projeto ou o
+/// proponente (o legado não declarava FK; aqui a integridade é explícita).
+model ProjectProponent {
+  id          String    @id @default(uuid()) @db.Uuid
+  projectId   String    @map("project_id") @db.Uuid
+  proponentId String    @map("proponent_id") @db.Uuid
+  role        String?   @db.VarChar(50)
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt   DateTime? @map("deleted_at") @db.Timestamptz(3)
+
+  project   Project   @relation(fields: [projectId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  proponent Proponent @relation(fields: [proponentId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@unique([projectId, proponentId])
+  @@index([proponentId])
+  @@map("project_proponents")
+}
+
+/// Objetivo de Desenvolvimento Sustentável (ODS) da ONU (tabela `sdgs` do
+/// legado, de `BrainSdgs`/`models.Sdg`).
+///
+/// - PK em UUID (era o `uint` do gorm);
+/// - `number` é único (1..17) e é a chave natural usada pelo seed idempotente;
+/// - `name`/`icon_url` sem tamanho no gorm (`text`) — mantidos por paridade;
+/// - soft delete (`deletedAt`) + timestamps (paridade com o `gorm.Model`).
+model Sdg {
+  id        String    @id @default(uuid()) @db.Uuid
+  number    Int       @unique
+  name      String    @db.Text
+  iconUrl   String    @map("icon_url") @db.Text
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(3)
+
+  projectSdgs ProjectSdg[]
+
+  @@map("sdgs")
+}
+
+/// Vínculo N:N entre projeto e ODS (tabela `project_sdg` do legado, de
+/// `BrainProjectSdgs`).
+///
+/// - PK em UUID (o legado usava PK composta; aqui a PK é o UUID e a unicidade
+///   do par vive na `@@unique([projectId, sdgId])`, exatamente como pedido);
+/// - soft delete (`deletedAt`) + timestamps. O legado **não** tinha soft delete
+///   nesta tabela (não embutia `gorm.Model`), mas o requisito manda manter a
+///   paridade de soft delete em todas as entidades de domínio — por isso o
+///   campo entra aqui também;
+/// - FKs em `onDelete: Cascade`.
+model ProjectSdg {
+  id        String    @id @default(uuid()) @db.Uuid
+  projectId String    @map("project_id") @db.Uuid
+  sdgId     String    @map("sdg_id") @db.Uuid
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(3)
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  sdg     Sdg     @relation(fields: [sdgId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@unique([projectId, sdgId])
+  @@index([sdgId])
+  @@map("project_sdg")
+}
