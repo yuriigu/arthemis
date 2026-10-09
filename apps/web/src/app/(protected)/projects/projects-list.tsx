@@ -101,7 +101,11 @@ export function ProjectsList({ search, page }: ProjectsListProps) {
           const primary = project.proponents.find((item) => item.isPrimary);
           return (
             <article key={project.id} className="rounded-xl border border-border bg-card p-5">
-              <h2 className="text-lg font-semibold">{project.name}</h2>
+              <h2 className="text-lg font-semibold">
+                  <Link href={`/projects/${project.id}`} className="hover:underline">
+                    {project.name}
+                  </Link>
+                </h2>
               <p className="text-sm text-muted-foreground">
                 {project.lifetimeStart} — {project.lifetimeEnd}
               </p>
