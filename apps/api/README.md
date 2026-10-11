@@ -347,26 +347,131 @@ no Postgres real).
 | `npm run db:migrate`      | Cria/aplica migrations em desenvolvimento.           |
 | `npm run db:push`         | Sincroniza o schema com o banco sem gerar migration. |
 
-## Banco de dados
+## Banco de dados e Docker
 
-```bash
-docker compose up -d --build   # sobe PostgreSQL + API NestJS
-docker compose ps               # status + healthcheck do PostgreSQL
-docker compose logs -f api      # logs da aplicação
-docker compose logs -f postgres # logs do banco
-docker compose down             # derruba (mantém o volume)
-docker compose down -v          # derruba e apaga o volume
+A infraestrutura local do backend pode ser executada de forma isolada através do `docker-compose.yml` da pasta `apps/api`, que orquestra o **PostgreSQL 16** (`postgres`) e a **API NestJS** (`api`) na rede interna `api-internal`.
+
+### Pré-requisitos
+- **Docker Desktop** instalado no Windows com a engine WSL2 ativa. O aplicativo Docker Desktop precisa estar em execução (ícone da baleia na bandeja do sistema).
+- **Node.js 22+** e **npm 10+** (para comandos locais e testes fora do container).
+
+### Configuração de Ambiente (.env)
+Antes de subir os serviços, crie seu arquivo `.env` a partir do modelo:
+
+```powershell
+# No Windows PowerShell (dentro de apps/api):
+Copy-Item .env.example .env
 ```
 
-Migrations e seed:
+O arquivo define:
+- Credenciais do banco: `POSTGRES_USER=arthemis_user`, `POSTGRES_PASSWORD=arthemis_password`, `POSTGRES_DB=arthemis_db`
+- Connection string para conexão local no Windows: `DATABASE_URL="postgresql://arthemis_user:arthemis_password@localhost:5432/arthemis_db?schema=public"`
+- O Docker Compose injeta automaticamente o hostname `postgres` dentro da rede de containers para a API.
 
-```bash
-npm run db:migrate   # aplica/cria migrations em desenvolvimento
-npm run prisma:seed  # popula o usuário inicial de desenvolvimento
+---
+
+### Comandos de Operação (Windows PowerShell)
+
+#### 1. Executados no Host (pasta `apps/api`)
+```powershell
+# Subir o PostgreSQL e a API em background (com build):
+docker compose up -d --build
+
+# Verificar o estado dos containers e healthchecks:
+docker compose ps
+
+# Acompanhar os logs da API em tempo real:
+docker compose logs -f api
+
+# Acompanhar os logs do PostgreSQL:
+docker compose logs -f postgres
+
+# Reiniciar a API (após alterações ou para recarregar ambiente):
+docker compose restart api
+
+# Parar os serviços mantendo os dados salvos:
+docker compose down
+
+# Parar os serviços e apagar os volumes de dados (limpeza completa):
+docker compose down -v
 ```
 
-O Compose do backend é a infraestrutura de desenvolvimento integrada: o serviço
-`postgres` fornece o banco e o serviço `api` roda NestJS na mesma rede
-`arthemis-api_api-internal`. O frontend em `apps/web` participa dessa rede e usa
-`API_INTERNAL_URL=http://api:8081` por padrão. A aplicação aplica
-`prisma migrate deploy` antes de iniciar o servidor NestJS.
+#### 2. Executados dentro dos Containers (via `docker compose exec`)
+```powershell
+# Aplicar migrations pendentes do Prisma no banco do container:
+docker compose exec api npx prisma migrate deploy
+
+# Executar o seed inicial (cria usuário admin e os 17 ODS):
+docker compose exec api npm run prisma:seed
+
+# Abrir o Prisma Studio para visualizar dados pelo navegador:
+docker compose exec api npx prisma studio
+
+# Acessar o terminal interativo psql no container do banco:
+docker compose exec postgres psql -U arthemis_user -d arthemis_db
+```
+
+#### 3. Executados no Host fora do Docker (desenvolvimento híbrido)
+Se preferir rodar apenas o banco no Docker e a API rodando no Node.js local:
+```powershell
+# 1. Suba apenas o PostgreSQL:
+docker compose up -d postgres
+
+# 2. Gere o Prisma Client localmente:
+npm run prisma:generate
+
+# 3. Aplique as migrations no banco:
+npm run db:migrate
+
+# 4. Inicie a API com hot-reload no seu terminal:
+npm run start:dev
+```
+
+---
+
+### Acesso à API e Verificação de Saúde
+- **Acesso HTTP**: `http://localhost:8081`
+- **Smoke test**: `GET http://localhost:8081/` -> Responde `Hello World!`
+- **Healthcheck do banco e API**: `GET http://localhost:8081/healthcheck`
+  - Responde `200 OK` com status `{"status": "ok", "checks": {"database": {"status": "up"}}}` quando a conexão com o PostgreSQL está operante.
+
+---
+
+### Conexão ao PostgreSQL por Ferramentas Externas (Host Windows)
+Você pode conectar clientes SQL (DBeaver, pgAdmin, TablePlus, VSCode Database Client, etc.) rodando diretamente no Windows utilizando a porta mapeada `5432`:
+
+| Parâmetro | Valor |
+| :--- | :--- |
+| **Host** | `localhost` ou `127.0.0.1` |
+| **Porta** | `5432` |
+| **Database** | `arthemis_db` |
+| **Usuário** | `arthemis_user` |
+| **Senha** | `arthemis_password` |
+| **Schema** | `public` |
+
+---
+
+### Persistência de Dados
+Os dados do banco de dados são mantidos de forma persistente através do volume nomeado `arthemis_api_postgres_data` montado em `/var/lib/postgresql/data`.
+Executar `docker compose down` preserva o volume e todos os dados gravados. Apenas o uso explícito da flag `-v` (`docker compose down -v`) descarta o volume.
+
+---
+
+### Solução de Problemas Comuns (Troubleshooting)
+
+1. **Erro `failed to connect to the docker API at npipe:////./pipe/dockerDesktopLinuxEngine`**:
+   - **Causa**: O aplicativo Docker Desktop está fechado ou o daemon WSL2 não concluiu a inicialização no Windows.
+   - **Solução**: Abra o Docker Desktop pelo Menu Iniciar do Windows e aguarde a indicação verde "Engine running" no canto inferior esquerdo da janela do Docker Desktop antes de executar comandos `docker compose`.
+
+2. **Erro `bind: address already in use` na porta `5432`**:
+   - **Causa**: Um serviço PostgreSQL nativo já está em execução no Windows na porta padrão `5432`.
+   - **Solução**: No PowerShell, pare o serviço local do Windows (`Stop-Service postgresql* -ErrorAction SilentlyContinue`) ou altere a porta mapeada do host em `ports: - "5433:5432"` no `docker-compose.yml`.
+
+3. **API falha no boot com `PrismaClientInitializationError` / `Can't reach database server`**:
+   - **Causa**: A API tentou conectar antes de o PostgreSQL estar pronto ou o hostname na connection string está incorreto.
+   - **Solução**: No container, a API deve utilizar o hostname `postgres` (garantido automaticamente via variável de ambiente no `docker-compose.yml`). O `depends_on` com `condition: service_healthy` garante que a API só inicia após o `pg_isready` responder com sucesso.
+
+4. **Erro ao rodar seed (`seed.ts`)**:
+   - **Causa**: As migrations ainda não foram aplicadas na base limpa.
+   - **Solução**: Execute `docker compose exec api npx prisma migrate deploy` antes de rodar `docker compose exec api npm run prisma:seed`.
+

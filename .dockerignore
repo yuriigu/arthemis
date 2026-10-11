@@ -1,0 +1,14 @@
+node_modules
+apps/api/node_modules
+apps/web/node_modules
+apps/api/dist
+apps/web/.next
+.env
+.env.*
+!.env.example
+*.log
+coverage
+.git
+.vscode
+.idea
+*.tsbuildinfo
