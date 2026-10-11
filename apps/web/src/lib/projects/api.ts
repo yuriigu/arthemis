@@ -124,3 +124,7 @@ export async function deleteProject(id: string): Promise<void> {
   const index = projects.findIndex((project) => project.id === id);
   if (index >= 0) projects.splice(index, 1);
 }
+
+export async function getProject(id: string): Promise<Project | null> {
+  return projects.find((project) => project.id === id) ?? null;
+}
