@@ -22,6 +22,6 @@ import { ProponentsService } from './proponents.service.js';
   imports: [PrismaModule, PassportModule.register({ defaultStrategy: 'jwt' })],
   controllers: [ProponentsController],
   providers: [ProponentsService, ProponentsRepository],
-  exports: [ProponentsService],
+  exports: [ProponentsService, ProponentsRepository],
 })
 export class ProponentsModule {}

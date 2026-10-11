@@ -12,7 +12,7 @@ import type {
  * de modo que a exclusão lógica nunca vaza no contrato — mesma estratégia do
  * `UsersRepository` para o `password_hash`.
  */
-const PUBLIC_PROPONENT_SELECT = {
+export const PUBLIC_PROPONENT_SELECT = {
   id: true,
   name: true,
   email: true,
