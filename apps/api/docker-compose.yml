@@ -1,4 +1,4 @@
-# Infraestrutura do backend: PostgreSQL e API NestJS.
+# Infraestrutura do backend: PostgreSQL 16 e API NestJS.
 # Uso: docker compose up -d --build
 name: arthemis-api
 
@@ -8,9 +8,9 @@ services:
     container_name: arthemis-api-postgres
     restart: unless-stopped
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:?set POSTGRES_USER in the .env file}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in the .env file}
-      POSTGRES_DB: ${POSTGRES_DB:?set POSTGRES_DB in the .env file}
+      POSTGRES_USER: ${POSTGRES_USER:-arthemis_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-arthemis_password}
+      POSTGRES_DB: ${POSTGRES_DB:-arthemis_db}
     ports:
       - "5432:5432"
     volumes:
@@ -18,10 +18,11 @@ services:
     networks:
       - api-internal
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
-      interval: 10s
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-arthemis_user} -d ${POSTGRES_DB:-arthemis_db}"]
+      interval: 5s
       timeout: 5s
-      retries: 3
+      retries: 10
+      start_period: 5s
 
   api:
     build:
@@ -35,8 +36,8 @@ services:
       NODE_ENV: ${NODE_ENV:-development}
       PORT: 8081
       SERVICE_NAME: ${SERVICE_NAME:-arthemis-api}
-      DATABASE_URL: "postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?schema=public"
-      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in the .env file}
+      DATABASE_URL: "postgresql://${POSTGRES_USER:-arthemis_user}:${POSTGRES_PASSWORD:-arthemis_password}@postgres:5432/${POSTGRES_DB:-arthemis_db}?schema=public"
+      JWT_SECRET: ${JWT_SECRET:-arthemis-dev-only-jwt-secret-change-me-9f4b7e2a-0123456789}
       JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-24h}
     ports:
       - "8081:8081"
@@ -45,9 +46,22 @@ services:
         condition: service_healthy
     networks:
       - api-internal
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:8081/healthcheck').then((response) => process.exit(response.ok ? 0 : 1)).catch(() => process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
 
 volumes:
   postgres_data:
+    name: arthemis_api_postgres_data
 
 networks:
   api-internal:

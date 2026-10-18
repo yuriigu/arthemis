@@ -8,11 +8,13 @@ O que já existe:
 
 - Esqueleto Nest.js rodando na porta **8081** (compatível com o gateway Traefik legado).
 - Validação de variáveis de ambiente no boot (fail-fast).
-- Prisma ORM configurado com driver adapter `pg` (model `User` + migration aplicada).
+- Prisma ORM configurado com driver adapter `pg` (models `User`, `Proponent`, `Project`, `ProjectProponent`, `Sdg` e `ProjectSdg` + migrations aplicadas).
 - `docker-compose.yml` sobe o PostgreSQL 16 e a API NestJS containerizada, com migrations aplicadas no startup.
 - `GET /healthcheck` com ping real no banco (200/503).
 - Módulo de usuários (`POST /users`, `GET /users/:id`) com hash bcrypt e seed inicial.
 - Módulo de autenticação (`POST /auth/login`, `GET /auth/me`) com JWT (HS256) e guard.
+- Modelagem de proponentes, projetos e ODS (migration `add_proponent_project_sdg_models`) com UUID, soft delete e seed dos 17 ODS.
+- Módulo de proponentes (`/proponents`) com CRUD, listagem para seletores, unicidade de e-mail (409), soft delete bloqueado por vínculos (409) e `JwtAuthGuard`.
 
 ## Stack
 
@@ -29,9 +31,9 @@ O que já existe:
 
 ```text
 apps/api
-├── prisma/schema.prisma          # model User (tabela `users`) + generator/datasource
-├── prisma/migrations/            # migration create_users_table (aplicada)
-├── prisma/seed.ts                # seed de desenvolvimento (usuário inicial)
+├── prisma/schema.prisma          # models User/Proponent/Project/ProjectProponent/Sdg/ProjectSdg + generator/datasource
+├── prisma/migrations/            # create_users_table + add_proponent_project_sdg_models (aplicadas)
+├── prisma/seed.ts                # seed idempotente: 17 ODS + usuário inicial
 ├── prisma.config.ts              # config do Prisma CLI: schema, migrations, seed e DATABASE_URL
 ├── docker-compose.yml            # somente o PostgreSQL 16
 ├── .env.example                  # modelo das variáveis de ambiente
@@ -42,6 +44,7 @@ apps/api
     ├── prisma/                   # PrismaModule/PrismaService (global)
     ├── users/                    # UsersModule/Controller/Service/Repository + DTOs
     ├── auth/                     # AuthModule/Controller/Service + DTO, guard e estratégia JWT
+    ├── modules/proponents/       # ProponentsModule/Controller/Service/Repository + DTOs (CRUD + seletores)
     ├── app.module.ts
     └── main.ts                   # bootstrap (porta 8081, fail-fast)
 ```
@@ -181,6 +184,60 @@ Variáveis opcionais: `SEED_USER_EMAIL`, `SEED_USER_PASSWORD` e `SEED_USER_ROLE`
 (veja o `.env.example`). O seed é idempotente e recusa a senha default quando
 `NODE_ENV=production` sem `SEED_USER_PASSWORD` explícito.
 
+## Proponentes, projetos e ODS
+
+Modelagem de domínio portada do legado (`legacy/brain/internal/models`, tabelas
+criadas pelo `AutoMigrate` do gorm) e consumida pelo
+`legacy/watcher/internal/models/brain.go`. As tabelas mantêm os **nomes físicos
+do legado** (`@@map`), usam **UUID** como PK e **soft delete** (`deleted_at`) em
+todas as entidades de domínio. Os relacionamentos são bidirecionais.
+
+| Model             | Tabela               | Observações                                                                 |
+| ----------------- | -------------------- | --------------------------------------------------------------------------- |
+| `Proponent`       | `proponents`         | organização proponente (`name`, `email`).                                   |
+| `Project`         | `projects`           | `proponent_id` (FK), `name` varchar(150), `lifetime_start/end` (`date`), `justification`. |
+| `ProjectProponent`| `project_proponents` | N:N projeto↔proponente com `role`; unique `(project_id, proponent_id)`.     |
+| `Sdg`             | `sdgs`               | ODS da ONU: `number` **único** (1..17), `name`, `icon_url`.                 |
+| `ProjectSdg`      | `project_sdg`        | N:N projeto↔ODS; unique `(project_id, sdg_id)`.                             |
+
+O model `User` ganhou, com paridade ao legado
+(`legacy/brain/internal/models/user.go`):
+
+- `username` (varchar(150), **único**) — opcional no banco porque o `POST /users`
+  atual cria o usuário só com e-mail/senha;
+- `proponent_id` → `proponents.id`, o relacionamento **opcional** `User -> Proponent`
+  (`ON DELETE SET NULL`).
+
+### Seed dos ODS
+
+O mesmo `npm run prisma:seed` popula os **17 Objetivos de Desenvolvimento
+Sustentável** da ONU (`sdgs`) com `upsert` pela chave natural `number`:
+
+```bash
+npm run prisma:seed
+# [seed] sdgs ready: 17 ODS (idempotente)
+# [seed] user ready: { ... }
+```
+
+Rodar quantas vezes for preciso não duplica registros. As URLs dos ícones
+apontam para a arte oficial da ONU publicada pelo projeto
+[open-sdg](https://open-sdg.org/sdg-translations/icons/) (as URLs diretas do
+`un.org` não são estáveis/hotlinkáveis).
+
+### Migrations e testes do schema
+
+```bash
+npm run db:migrate          # cria/aplica migrations em desenvolvimento (prisma migrate dev)
+npx prisma migrate deploy   # aplica as migrations pendentes (também usado no startup)
+npm run prisma:generate     # regenera o Prisma Client em src/generated/prisma
+npm run test:integration    # test/prisma.integration-spec.ts (+ users/auth)
+```
+
+`test/prisma.integration-spec.ts` valida: migrations aplicando em **banco limpo
+sem erro de FK/constraint** (schema descartável + `prisma migrate deploy`), as
+uniques compostas e a FK `users.proponent_id`, a associação `User <-> Proponent`
+com leitura do `username` e a idempotência do seed (17 ODS após duas execuções).
+
 ## Autenticação
 
 Portabilidade do serviço `auth` legado (`legacy/edge/services/auth`): login com
@@ -215,6 +272,64 @@ curl -i -X POST http://localhost:8081/auth/login \
 curl -i http://localhost:8081/auth/me -H 'Authorization: Bearer <token>'
 ```
 
+## Proponentes (CRUD + seletores)
+
+Portabilidade do `ProponentHandler` legado
+(`legacy/brain/internal/handlers/proponent.go`) para a arquitetura em camadas
+(`src/modules/proponents`), com as regras de negócio que o legado não tinha. O
+recurso é `/proponents` (plural, REST) e **todas as rotas exigem Bearer válido**
+(`JwtAuthGuard`) — no legado o gateway Traefik fazia o `forwardAuth`.
+
+| Método   | Rota                  | Sucesso                                                     | Erros                                                            |
+| -------- | --------------------- | ----------------------------------------------------------- | ---------------------------------------------------------------- |
+| `GET`    | `/proponents?search=` | `200` lista (array puro, sem paginação; `200 []` se vazia)   | `400` query fora do contrato; `401`                              |
+| `POST`   | `/proponents`         | `201` proponente criado                                      | `400` corpo inválido; `401`; `409` e-mail duplicado              |
+| `GET`    | `/proponents/:id`     | `200` proponente                                             | `400` id não-UUID; `401`; `404`                                  |
+| `PATCH`  | `/proponents/:id`     | `200` proponente atualizado (`PartialType` do DTO de criação) | `400`; `401`; `404`; `409` e-mail duplicado                      |
+| `DELETE` | `/proponents/:id`     | `204` (soft delete via `deleted_at`)                        | `400`; `401`; `404`; `409` projetos/usuários vinculados          |
+
+Regras de negócio:
+
+- **e-mail único**: `POST`/`PATCH` respondem `409 Conflict` quando já existe
+  proponente **ativo** com o mesmo e-mail (normalizado com `trim + lowercase`). O
+  `email` do schema **não** é `unique` (paridade com o gorm legado, que só exigia
+  `not null`), então a checagem é feita na camada de serviço; o e-mail de um
+  proponente excluído logicamente pode ser reaproveitado;
+- **listagem para seletores**: `GET /proponents` devolve um **array puro** (sem
+  paginação) apenas com registros ativos, ordenado por `name`, e aceita
+  `?search=` para filtrar por trecho do nome (case-insensitive, `ILIKE`). Sem
+  registros: `200 []`;
+- **política de exclusão**: `DELETE` aplica **soft delete** (`deleted_at`) e
+  responde `409 Conflict` quando ainda existem **projetos ativos**
+  (`projects.deleted_at IS NULL`) ou **usuários vinculados** (`users.proponent_id`)
+  — o legado apagava o proponente e deixava projeto órfão, já que a FK não existia;
+- o `deletedAt` nunca aparece na resposta (`select` público + `WHERE deleted_at IS
+  NULL` no repositório).
+
+```bash
+TOKEN=$(curl -s -X POST http://localhost:8081/auth/login \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"admin@arthemis.local","password":"arthemis-dev-123"}' \
+  | sed -E 's/.*"access_token":"([^"]+)".*/\1/')
+
+# listagem para seletor (sem registros => 200 [])
+curl -i http://localhost:8081/proponents -H "Authorization: Bearer $TOKEN"
+
+# criação (409 se o e-mail já existir)
+curl -i -X POST http://localhost:8081/proponents \
+  -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+  -d '{"name":"Instituto Arthemis","email":"contato@arthemis.test"}'
+
+# exclusão lógica (409 se houver projeto/usuário vinculado)
+curl -i -X DELETE http://localhost:8081/proponents/<id> \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+Testes do módulo: `src/modules/proponents/*.spec.ts` (unitários do
+service/repository), `test/proponents.e2e-spec.ts` (contrato HTTP + guard, sem
+banco) e `test/proponents.integration-spec.ts` (soft delete e travas de vínculo
+no Postgres real).
+
 ## Scripts
 
 | Script                    | Descrição                                            |
@@ -232,26 +347,131 @@ curl -i http://localhost:8081/auth/me -H 'Authorization: Bearer <token>'
 | `npm run db:migrate`      | Cria/aplica migrations em desenvolvimento.           |
 | `npm run db:push`         | Sincroniza o schema com o banco sem gerar migration. |
 
-## Banco de dados
+## Banco de dados e Docker
 
-```bash
-docker compose up -d --build   # sobe PostgreSQL + API NestJS
-docker compose ps               # status + healthcheck do PostgreSQL
-docker compose logs -f api      # logs da aplicação
-docker compose logs -f postgres # logs do banco
-docker compose down             # derruba (mantém o volume)
-docker compose down -v          # derruba e apaga o volume
+A infraestrutura local do backend pode ser executada de forma isolada através do `docker-compose.yml` da pasta `apps/api`, que orquestra o **PostgreSQL 16** (`postgres`) e a **API NestJS** (`api`) na rede interna `api-internal`.
+
+### Pré-requisitos
+- **Docker Desktop** instalado no Windows com a engine WSL2 ativa. O aplicativo Docker Desktop precisa estar em execução (ícone da baleia na bandeja do sistema).
+- **Node.js 22+** e **npm 10+** (para comandos locais e testes fora do container).
+
+### Configuração de Ambiente (.env)
+Antes de subir os serviços, crie seu arquivo `.env` a partir do modelo:
+
+```powershell
+# No Windows PowerShell (dentro de apps/api):
+Copy-Item .env.example .env
 ```
 
-Migrations e seed:
+O arquivo define:
+- Credenciais do banco: `POSTGRES_USER=arthemis_user`, `POSTGRES_PASSWORD=arthemis_password`, `POSTGRES_DB=arthemis_db`
+- Connection string para conexão local no Windows: `DATABASE_URL="postgresql://arthemis_user:arthemis_password@localhost:5432/arthemis_db?schema=public"`
+- O Docker Compose injeta automaticamente o hostname `postgres` dentro da rede de containers para a API.
 
-```bash
-npm run db:migrate   # aplica/cria migrations em desenvolvimento
-npm run prisma:seed  # popula o usuário inicial de desenvolvimento
+---
+
+### Comandos de Operação (Windows PowerShell)
+
+#### 1. Executados no Host (pasta `apps/api`)
+```powershell
+# Subir o PostgreSQL e a API em background (com build):
+docker compose up -d --build
+
+# Verificar o estado dos containers e healthchecks:
+docker compose ps
+
+# Acompanhar os logs da API em tempo real:
+docker compose logs -f api
+
+# Acompanhar os logs do PostgreSQL:
+docker compose logs -f postgres
+
+# Reiniciar a API (após alterações ou para recarregar ambiente):
+docker compose restart api
+
+# Parar os serviços mantendo os dados salvos:
+docker compose down
+
+# Parar os serviços e apagar os volumes de dados (limpeza completa):
+docker compose down -v
 ```
 
-O Compose do backend é a infraestrutura de desenvolvimento integrada: o serviço
-`postgres` fornece o banco e o serviço `api` roda NestJS na mesma rede
-`arthemis-api_api-internal`. O frontend em `apps/web` participa dessa rede e usa
-`API_INTERNAL_URL=http://api:8081` por padrão. A aplicação aplica
-`prisma migrate deploy` antes de iniciar o servidor NestJS.
+#### 2. Executados dentro dos Containers (via `docker compose exec`)
+```powershell
+# Aplicar migrations pendentes do Prisma no banco do container:
+docker compose exec api npx prisma migrate deploy
+
+# Executar o seed inicial (cria usuário admin e os 17 ODS):
+docker compose exec api npm run prisma:seed
+
+# Abrir o Prisma Studio para visualizar dados pelo navegador:
+docker compose exec api npx prisma studio
+
+# Acessar o terminal interativo psql no container do banco:
+docker compose exec postgres psql -U arthemis_user -d arthemis_db
+```
+
+#### 3. Executados no Host fora do Docker (desenvolvimento híbrido)
+Se preferir rodar apenas o banco no Docker e a API rodando no Node.js local:
+```powershell
+# 1. Suba apenas o PostgreSQL:
+docker compose up -d postgres
+
+# 2. Gere o Prisma Client localmente:
+npm run prisma:generate
+
+# 3. Aplique as migrations no banco:
+npm run db:migrate
+
+# 4. Inicie a API com hot-reload no seu terminal:
+npm run start:dev
+```
+
+---
+
+### Acesso à API e Verificação de Saúde
+- **Acesso HTTP**: `http://localhost:8081`
+- **Smoke test**: `GET http://localhost:8081/` -> Responde `Hello World!`
+- **Healthcheck do banco e API**: `GET http://localhost:8081/healthcheck`
+  - Responde `200 OK` com status `{"status": "ok", "checks": {"database": {"status": "up"}}}` quando a conexão com o PostgreSQL está operante.
+
+---
+
+### Conexão ao PostgreSQL por Ferramentas Externas (Host Windows)
+Você pode conectar clientes SQL (DBeaver, pgAdmin, TablePlus, VSCode Database Client, etc.) rodando diretamente no Windows utilizando a porta mapeada `5432`:
+
+| Parâmetro | Valor |
+| :--- | :--- |
+| **Host** | `localhost` ou `127.0.0.1` |
+| **Porta** | `5432` |
+| **Database** | `arthemis_db` |
+| **Usuário** | `arthemis_user` |
+| **Senha** | `arthemis_password` |
+| **Schema** | `public` |
+
+---
+
+### Persistência de Dados
+Os dados do banco de dados são mantidos de forma persistente através do volume nomeado `arthemis_api_postgres_data` montado em `/var/lib/postgresql/data`.
+Executar `docker compose down` preserva o volume e todos os dados gravados. Apenas o uso explícito da flag `-v` (`docker compose down -v`) descarta o volume.
+
+---
+
+### Solução de Problemas Comuns (Troubleshooting)
+
+1. **Erro `failed to connect to the docker API at npipe:////./pipe/dockerDesktopLinuxEngine`**:
+   - **Causa**: O aplicativo Docker Desktop está fechado ou o daemon WSL2 não concluiu a inicialização no Windows.
+   - **Solução**: Abra o Docker Desktop pelo Menu Iniciar do Windows e aguarde a indicação verde "Engine running" no canto inferior esquerdo da janela do Docker Desktop antes de executar comandos `docker compose`.
+
+2. **Erro `bind: address already in use` na porta `5432`**:
+   - **Causa**: Um serviço PostgreSQL nativo já está em execução no Windows na porta padrão `5432`.
+   - **Solução**: No PowerShell, pare o serviço local do Windows (`Stop-Service postgresql* -ErrorAction SilentlyContinue`) ou altere a porta mapeada do host em `ports: - "5433:5432"` no `docker-compose.yml`.
+
+3. **API falha no boot com `PrismaClientInitializationError` / `Can't reach database server`**:
+   - **Causa**: A API tentou conectar antes de o PostgreSQL estar pronto ou o hostname na connection string está incorreto.
+   - **Solução**: No container, a API deve utilizar o hostname `postgres` (garantido automaticamente via variável de ambiente no `docker-compose.yml`). O `depends_on` com `condition: service_healthy` garante que a API só inicia após o `pg_isready` responder com sucesso.
+
+4. **Erro ao rodar seed (`seed.ts`)**:
+   - **Causa**: As migrations ainda não foram aplicadas na base limpa.
+   - **Solução**: Execute `docker compose exec api npx prisma migrate deploy` antes de rodar `docker compose exec api npm run prisma:seed`.
+

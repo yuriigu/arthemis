@@ -79,6 +79,7 @@ export function Sidebar({
 }) {
   const pathname = usePathname();
   const isDashboard = pathname === "/dashboard";
+  const isProponents = pathname === "/proponents";
 
   return (
     <>
@@ -105,7 +106,7 @@ export function Sidebar({
             <CloseIcon />
           </button>
         </div>
-        <nav>
+        <nav className="flex flex-col gap-1">
           <Link
             href="/dashboard"
             aria-current={isDashboard ? "page" : undefined}
@@ -114,6 +115,15 @@ export function Sidebar({
           >
             <DashboardIcon />
             Dashboard
+          </Link>
+          <Link
+            href="/proponents"
+            aria-current={isProponents ? "page" : undefined}
+            onClick={onClose}
+            className={`flex items-center gap-3 rounded-md px-4 py-3 font-medium hover:bg-sidebar-accent ${isProponents ? "bg-sidebar-primary text-sidebar-primary-foreground" : ""}`}
+          >
+            <ProponentsIcon />
+            Proponentes
           </Link>
         </nav>
       </aside>
@@ -144,6 +154,14 @@ function DashboardIcon() {
       <rect x="14" y="3" width="7" height="7" rx="1" />
       <rect x="3" y="14" width="7" height="7" rx="1" />
       <rect x="14" y="14" width="7" height="7" rx="1" />
+    </svg>
+  );
+}
+
+function ProponentsIcon() {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 24 24" className="size-5" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M3 21h18M5 21V7l7-4 7 4v14M9 10h.01M15 10h.01M9 14h.01M15 14h.01M10 21v-3h4v3" />
     </svg>
   );
 }
