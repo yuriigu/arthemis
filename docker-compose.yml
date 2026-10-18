@@ -83,6 +83,30 @@ services:
       # Margem para `prisma generate` + `migrate deploy` + primeiro `tsc` watch.
       start_period: 120s
 
+  # Seed one-shot: popula ODS + admin via `prisma db seed` depois que o
+  # backend fica saudável. Idempotente (upsert) — re-`up` não duplica nada.
+  # Roda uma vez por `up` (restart: "no").
+  seed:
+    image: arthemis-backend
+    container_name: arthemis-seed
+    restart: "no"
+    working_dir: /app
+    command: ["sh", "-c", "npx prisma db seed"]
+    environment:
+      NODE_ENV: ${NODE_ENV:-development}
+      DATABASE_URL: "postgresql://${POSTGRES_USER:-arthemis_user}:${POSTGRES_PASSWORD:-arthemis_password}@db:5432/${POSTGRES_DB:-arthemis_db}?schema=public"
+      SEED_USER_EMAIL: ${SEED_USER_EMAIL:-admin@arthemis.local}
+      SEED_USER_PASSWORD: ${SEED_USER_PASSWORD:-arthemis-dev-123}
+      SEED_USER_ROLE: ${SEED_USER_ROLE:-admin}
+    volumes:
+      - ./apps/api:/app
+      - backend_node_modules:/app/node_modules
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - arthemis
+
   frontend:
     build:
       context: ./apps/web

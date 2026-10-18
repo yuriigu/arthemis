@@ -26,7 +26,6 @@ RUN apk add --no-cache \
     fontconfig \
     freetype \
     ttf-dejavu \
-    ttf-droid \
     ttf-freefont \
     ttf-liberation
 

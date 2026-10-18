@@ -72,14 +72,26 @@ O `DATABASE_URL` e o `JWT_SECRET` injetados pelo Compose têm precedência sobre
 `apps/api/.env` do host (esse arquivo é apenas visível dentro do container via
 bind mount, sem sobrescrever o ambiente do Compose).
 
-### Seed de desenvolvimento
+### Seed de desenvolvimento (automática)
 
-O Compose aplica as migrations automaticamente. Para criar o usuário admin
-padrão de desenvolvimento em uma base nova, rode o seed idempotente:
+O serviço `seed` (one-shot, `restart: "no"`) roda `npx prisma db seed`
+automaticamente após o backend ficar saudável — popula os **17 ODS** + o
+usuário admin via `upsert` idempotente (re-`up` não duplica nada).
+
+| Onde | Credencial |
+|---|---|
+| Frontend `http://localhost:3000/login` | `admin@arthemis.local` / `arthemis-dev-123` |
+| API `POST http://localhost:8081/auth/login` | `{"email":"admin@arthemis.local","password":"arthemis-dev-123"}` |
+
+Sobrescrever via env:
 
 ```bash
-docker compose exec backend npx prisma db seed
+SEED_USER_EMAIL=admin@arthemis.local SEED_USER_PASSWORD=arthemis-dev-123 \
+SEED_USER_ROLE=admin docker compose up -d --build
 ```
+
+Ver o que a seed fez: `docker logs arthemis-seed`. O seed manual continua
+disponível: `docker compose exec backend npx prisma db seed`.
 
 ### Produção
 
