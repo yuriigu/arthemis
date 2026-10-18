@@ -1,0 +1,155 @@
+name: arthemis-legacy
+
+# Stack reduzida do legado: brain + watcher + auth (edge) + front + postgres.
+# Sem minio, sem traefik.
+#
+#   cd arthemis/legacy
+#   docker compose up -d --build
+#   docker compose down -v
+#
+services:
+  # ----------------------------- Banco -----------------------------
+  db:
+    image: postgres:16-alpine
+    container_name: arthemis-legacy-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: app_user
+      POSTGRES_PASSWORD: app_password
+      POSTGRES_DB: app_db
+    ports:
+      # Host deslocado p/ nao conflitar com apps (que usa 5432).
+      - "5544:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-db/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+    networks:
+      - arthemis
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U app_user -d app_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
+
+  # ------------------------------ Brain ------------------------------
+  brain:
+    build: ./brain
+    container_name: arthemis-brain
+    restart: unless-stopped
+    environment:
+      DB_HOST: db
+      DB_PORT: "5432"
+      DB_USER: app_user
+      DB_PASSWORD: app_password
+      DB_NAME: app_db
+    ports:
+      - "8091:8081"
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - arthemis
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8081/health | grep -q '\"status\"'"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+
+  # ------------------------------ Watcher ------------------------------
+  watcher:
+    build: ./watcher
+    container_name: arthemis-watcher
+    restart: unless-stopped
+    environment:
+      DB_HOST: db
+      DB_PORT: "5432"
+      DB_USER: watcher_user
+      DB_PASSWORD: watcher_password
+      DB_NAME: watcher_db
+      PORT: "8082"
+    ports:
+      - "8092:8082"
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - arthemis
+
+  # ---------------------------- Auth (edge) ----------------------------
+  auth:
+    build: ./edge/services/auth
+    container_name: arthemis-auth
+    restart: unless-stopped
+    environment:
+      DB_HOST: db
+      DB_PORT: "5432"
+      DB_USER: auth_user
+      DB_PASSWORD: auth_password
+      DB_NAME: auth_db
+      DEVELOPMENT: "true"
+      JWT_TOKEN: "arthemis-legacy-dev-secret-change-me"
+    ports:
+      - "6769:6769"
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - arthemis
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:6769/health | grep -q '\"status\"'"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+
+  # --------------------------- Seed (one-shot) ---------------------------
+  # Cria o admin via API depois que auth+brain ficam saudaveis. Roda uma vez
+  # por `up` (restart: "no") e e idempotente — re-`up` nao duplica nada.
+  seed:
+    build: ./init-db/seed
+    container_name: arthemis-legacy-seed
+    restart: "no"
+    environment:
+      AUTH_URL: http://auth:6769
+      BRAIN_URL: http://brain:8081
+      SEED_ADMIN_USERNAME: ${SEED_ADMIN_USERNAME:-admin}
+      SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:-admin123}
+      SEED_ADMIN_ROLE: ${SEED_ADMIN_ROLE:-admin}
+      SEED_ADMIN_EMAIL: ${SEED_ADMIN_EMAIL:-admin@arthemis.local}
+    depends_on:
+      auth:
+        condition: service_healthy
+      brain:
+        condition: service_healthy
+    networks:
+      - arthemis
+
+  # ------------------------------ Front ------------------------------
+  front:
+    build: ./front
+    container_name: arthemis-legacy-front
+    restart: unless-stopped
+    environment:
+      NODE_ENV: development
+      HOST: 0.0.0.0
+      PORT: "5173"
+      ARTHEMIS_AUTH_URL: http://auth:6769
+      ARTHEMIS_BRAIN_URL: http://brain:8081
+    ports:
+      - "5173:5173"
+    depends_on:
+      - auth
+      - brain
+    networks:
+      - arthemis
+
+volumes:
+  postgres_data:
+    name: arthemis-legacy_postgres_data
+
+networks:
+  arthemis:
+    name: arthemis-legacy
+    driver: bridge
