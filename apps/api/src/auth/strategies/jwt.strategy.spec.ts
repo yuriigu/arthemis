@@ -23,8 +23,11 @@ describe('JwtStrategy', () => {
     expect(() => new JwtStrategy(new ConfigService({}))).toThrow();
   });
 
-  it('devolve sub/email/role a partir do payload validado', () => {
-    expect(strategy.validate(payload)).toEqual(payload);
+  it('devolve id/sub/email/role a partir do payload validado', () => {
+    expect(strategy.validate(payload)).toEqual({
+      id: payload.sub,
+      ...payload,
+    });
   });
 
   it('rejeita token sem payload (null)', () => {

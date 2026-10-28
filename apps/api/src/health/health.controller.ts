@@ -1,4 +1,5 @@
 import { Controller, Get, Res } from '@nestjs/common';
+import { Public } from '../common/decorators/public.decorator.js';
 import type { Response } from 'express';
 import { HealthService } from './health.service.js';
 import type { HealthCheckResponse } from './models/i-health.js';
@@ -14,6 +15,7 @@ export class HealthController {
    * - 503 + `status: "degraded"` quando o banco está fora ou não responde em 2s.
    */
   @Get()
+  @Public()
   async check(
     @Res({ passthrough: true }) response: Response,
   ): Promise<HealthCheckResponse> {

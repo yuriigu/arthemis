@@ -1,11 +1,13 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PassportStrategy } from '@nestjs/passport';
+import type { Request } from 'express';
 import { ExtractJwt, Strategy } from 'passport-jwt';
+import { AUTH_COOKIE_NAME } from '../auth.constants.js';
 import type { AuthenticatedUser, JwtPayload } from '../models/i-auth.js';
 
 /**
- * Estratégia Bearer/JWT usada pelo `JwtAuthGuard`.
+ * Estratégia Bearer/cookie JWT usada pelo `JwtAuthGuard`.
  *
  * Espelha a validação do `/validate` legado:
  * - assinatura HS256 com o mesmo segredo (`JWT_TOKEN` no legado →
@@ -19,7 +21,10 @@ import type { AuthenticatedUser, JwtPayload } from '../models/i-auth.js';
 export class JwtStrategy extends PassportStrategy(Strategy) {
   constructor(configService: ConfigService) {
     super({
-      jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
+      jwtFromRequest: ExtractJwt.fromExtractors([
+        ExtractJwt.fromAuthHeaderAsBearerToken(),
+        extractAuthCookie,
+      ]),
       ignoreExpiration: false,
       algorithms: ['HS256'],
       secretOrKey: configService.getOrThrow<string>('JWT_SECRET'),
@@ -35,6 +40,26 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       throw new UnauthorizedException('Invalid token');
     }
 
-    return { sub: payload.sub, email: payload.email, role: payload.role };
+    return {
+      id: payload.sub,
+      sub: payload.sub,
+      email: payload.email,
+      role: payload.role,
+    };
   }
+}
+
+function extractAuthCookie(request: Request): string | null {
+  const cookieHeader = request.headers.cookie;
+  if (!cookieHeader) {
+    return null;
+  }
+
+  const cookiePrefix = `${AUTH_COOKIE_NAME}=`;
+  const cookie = cookieHeader
+    .split(';')
+    .map((part) => part.trim())
+    .find((part) => part.startsWith(cookiePrefix));
+
+  return cookie?.slice(cookiePrefix.length) || null;
 }

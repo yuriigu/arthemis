@@ -1,3 +1,5 @@
+import { Role } from '../../common/enums/role.enum.js';
+
 /**
  * Contratos de usuário do módulo `users`.
  *
@@ -6,12 +8,12 @@
  */
 
 /** Papéis de autorização — espelha UserRoleAdmin/Manager/Visitor do Go. */
-export const USER_ROLES = ['admin', 'manager', 'visitor'] as const;
+export const USER_ROLES = [Role.ADMIN, Role.MANAGER, Role.VISITOR] as const;
 
-export type UserRole = (typeof USER_ROLES)[number];
+export type UserRole = Role;
 
 /** Default do legado (`gorm:"...;default:'visitor'"`). */
-export const DEFAULT_USER_ROLE: UserRole = 'visitor';
+export const DEFAULT_USER_ROLE: UserRole = Role.VISITOR;
 
 /**
  * Usuário como está no banco, **incluindo** o `passwordHash`.

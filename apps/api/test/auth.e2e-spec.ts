@@ -1,10 +1,13 @@
 import type { INestApplication } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { APP_GUARD } from '@nestjs/core';
 import { JwtService } from '@nestjs/jwt';
 import type { JwtSignOptions } from '@nestjs/jwt';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import { AuthModule } from '../src/auth/auth.module.js';
+import { JwtAuthGuard } from '../src/auth/guards/jwt-auth.guard.js';
+import { RolesGuard } from '../src/common/guards/roles.guard.js';
 import { configureApp } from '../src/config/app.setup.js';
 import { PrismaService } from '../src/prisma/prisma.service.js';
 import type { UserRecord } from '../src/users/models/i-user.js';
@@ -75,6 +78,10 @@ describe('Auth (e2e)', () => {
         ConfigModule.forRoot({ isGlobal: true, ignoreEnvFile: true }),
         AuthModule,
       ],
+      providers: [
+        { provide: APP_GUARD, useClass: JwtAuthGuard },
+        { provide: APP_GUARD, useClass: RolesGuard },
+      ],
     })
       // PrismaService sai do caminho: nenhum teste abre conexão real.
       .overrideProvider(PrismaService)
@@ -119,6 +126,9 @@ describe('Auth (e2e)', () => {
 
       expect(Object.keys(response.body)).toEqual(['access_token']);
       expect(typeof response.body.access_token).toBe('string');
+      expect(response.headers['set-cookie']?.[0]).toMatch(
+        /^arthemis_token=.*; Path=\/; HttpOnly; SameSite=Lax/i,
+      );
 
       // Cabeçalho: HS256 (mesmo algoritmo do auth legado).
       const header = JSON.parse(
@@ -228,6 +238,22 @@ describe('Auth (e2e)', () => {
       expect(repository.findById).toHaveBeenCalledWith(storedUser.id);
     });
 
+    it('aceita o JWT recebido no cookie arthemis_token', async () => {
+      const token = await login();
+
+      const response = await request(app.getHttpServer())
+        .get('/auth/me')
+        .set('Cookie', `arthemis_token=${token}`)
+        .expect(200);
+
+      expect(response.body).toMatchObject({
+        id: storedUser.id,
+        email: storedUser.email,
+        role: storedUser.role,
+      });
+      expect(response.body).not.toHaveProperty('passwordHash');
+    });
+
     it('responde 401 sem o header Authorization', async () => {
       await request(app.getHttpServer()).get('/auth/me').expect(401);
     });
@@ -272,6 +298,52 @@ describe('Auth (e2e)', () => {
         .get('/auth/me')
         .set('Authorization', `Bearer ${token}`)
         .expect(404);
+    });
+  });
+
+  describe('POST /auth/logout', () => {
+    it('limpa o cookie de autenticação', async () => {
+      const response = await request(app.getHttpServer())
+        .post('/auth/logout')
+        .expect(200);
+
+      expect(response.body).toEqual({ success: true });
+      expect(response.headers['set-cookie']?.[0]).toMatch(
+        /^arthemis_token=; Path=\/; Expires=/i,
+      );
+      expect(response.headers['set-cookie']?.[0]).toMatch(/HttpOnly/i);
+    });
+  });
+
+  describe('Roles', () => {
+    it('responde 403 quando um visitor acessa uma rota de administrador', async () => {
+      const token = await signToken({
+        sub: storedUser.id,
+        email: storedUser.email,
+        role: 'visitor',
+      });
+
+      await request(app.getHttpServer())
+        .get(`/users/${storedUser.id}`)
+        .set('Authorization', `Bearer ${token}`)
+        .expect(403);
+
+      expect(repository.findById).not.toHaveBeenCalled();
+    });
+
+    it('permite acesso administrativo e nunca inclui passwordHash', async () => {
+      const token = await signToken({
+        sub: storedUser.id,
+        email: storedUser.email,
+        role: 'admin',
+      });
+
+      const response = await request(app.getHttpServer())
+        .get(`/users/${storedUser.id}`)
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200);
+
+      expect(response.body).not.toHaveProperty('passwordHash');
     });
   });
 });
