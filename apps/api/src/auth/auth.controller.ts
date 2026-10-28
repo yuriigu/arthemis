@@ -6,8 +6,12 @@ import {
   HttpStatus,
   Post,
   Req,
+  Res,
   UseGuards,
 } from '@nestjs/common';
+import type { Response } from 'express';
+import { Public } from '../common/decorators/public.decorator.js';
+import { AUTH_COOKIE_NAME, getAuthCookieOptions } from './auth.constants.js';
 import { AuthService } from './auth.service.js';
 import { LoginDto } from './dto/login.dto.js';
 import { JwtAuthGuard } from './guards/jwt-auth.guard.js';
@@ -35,9 +39,27 @@ export class AuthController {
    * - 401 para credenciais inválidas (mensagem uniforme, sem enumeração).
    */
   @Post('login')
+  @Public()
   @HttpCode(HttpStatus.OK)
-  async login(@Body() dto: LoginDto): Promise<AuthResponse> {
-    return this.authService.login(dto);
+  async login(
+    @Body() dto: LoginDto,
+    @Res({ passthrough: true }) response: Response,
+  ): Promise<AuthResponse> {
+    const result = await this.authService.login(dto);
+    response.cookie(
+      AUTH_COOKIE_NAME,
+      result.access_token,
+      getAuthCookieOptions(),
+    );
+    return result;
+  }
+
+  @Post('logout')
+  @Public()
+  @HttpCode(HttpStatus.OK)
+  logout(@Res({ passthrough: true }) response: Response): { success: true } {
+    response.clearCookie(AUTH_COOKIE_NAME, getAuthCookieOptions());
+    return { success: true };
   }
 
   /**
@@ -49,6 +71,6 @@ export class AuthController {
   @Get('me')
   @UseGuards(JwtAuthGuard)
   async me(@Req() request: AuthenticatedRequest): Promise<PublicUser> {
-    return this.authService.getProfile(request.user.sub);
+    return this.authService.getProfile(request.user.id);
   }
 }

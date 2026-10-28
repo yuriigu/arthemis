@@ -12,7 +12,7 @@ O que já existe:
 - `docker-compose.yml` sobe o PostgreSQL 16 e a API NestJS containerizada, com migrations aplicadas no startup.
 - `GET /healthcheck` com ping real no banco (200/503).
 - Módulo de usuários (`POST /users`, `GET /users/:id`) com hash bcrypt e seed inicial.
-- Módulo de autenticação (`POST /auth/login`, `GET /auth/me`) com JWT (HS256) e guard.
+- Módulo de autenticação (`POST /auth/login`, `POST /auth/logout`, `GET /auth/me`) com JWT (HS256), cookie HttpOnly e guards globais.
 - Modelagem de proponentes, projetos e ODS (migration `add_proponent_project_sdg_models`) com UUID, soft delete e seed dos 17 ODS.
 - Módulo de proponentes (`/proponents`) com CRUD, listagem para seletores, unicidade de e-mail (409), soft delete bloqueado por vínculos (409) e `JwtAuthGuard`.
 
@@ -140,8 +140,12 @@ senha em `password_hash`.
 
 | Método | Rota         | Comportamento                                                                |
 | ------ | ------------ | ---------------------------------------------------------------------------- |
-| `POST` | `/users`     | `201` com `{ id, email, role, createdAt, updatedAt }`; `400` corpo inválido; `409` e-mail já cadastrado |
-| `GET`  | `/users/:id` | `200` com o usuário (sem hash); `400` id que não é UUID; `404` não encontrado |
+| `POST` | `/users`     | `201` com `{ id, email, role, createdAt, updatedAt }`; `400` corpo inválido; `409` e-mail já cadastrado; `401` sem autenticação |
+| `GET`  | `/users/:id` | `200` com o usuário (sem hash); `400` id que não é UUID; `401` sem autenticação; `403` sem papel admin; `404` não encontrado |
+
+As rotas exigem autenticação por padrão. `GET /`, `GET /healthcheck`,
+`POST /auth/login` e `POST /auth/logout` são públicas; `GET /users/:id` exige
+também o papel `admin`.
 
 Regras de segurança implementadas:
 
@@ -243,11 +247,14 @@ com leitura do `username` e a idempotência do seed (17 ODS após duas execuçõ
 Portabilidade do serviço `auth` legado (`legacy/edge/services/auth`): login com
 JWT **HS256**, claims `sub` (UUID do usuário), `email` e `role`, validade de
 `JWT_EXPIRES_IN` (default 24h — igual ao `exp` fixo do legado) e verificação do
-`Authorization: Bearer` pelo `JwtAuthGuard`/`JwtStrategy`.
+`Authorization: Bearer` ou cookie `arthemis_token` pelo
+`JwtAuthGuard`/`JwtStrategy`. O login define esse cookie como HttpOnly, SameSite
+Lax e Secure em produção.
 
 | Método | Rota         | Comportamento |
 | ------ | ------------ | ------------- |
 | `POST` | `/auth/login` | `200` com `{ "access_token": "..." }`; `400` corpo inválido; `401` credenciais inválidas |
+| `POST` | `/auth/logout` | `200` e limpa o cookie de autenticação |
 | `GET`  | `/auth/me`    | `200` com o perfil do usuário do token (sem hash); `401` sem token, inválido ou expirado |
 
 Regras herdadas do legado:
@@ -261,6 +268,8 @@ Regras herdadas do legado:
   HS256 ou expirado é rejeitado com `401` (como o `/validate` legado);
 - o `GET /auth/me` consulta o banco a partir do `sub` do token: papel e e-mail
   sempre atualizados e o `passwordHash` jamais sai da camada de repositório.
+- `request.user.id` e `request.user.sub` correspondem à claim `sub`; as rotas
+  privadas usam os guards globais e as públicas são marcadas explicitamente.
 
 ```bash
 # login
@@ -474,4 +483,3 @@ Executar `docker compose down` preserva o volume e todos os dados gravados. Apen
 4. **Erro ao rodar seed (`seed.ts`)**:
    - **Causa**: As migrations ainda não foram aplicadas na base limpa.
    - **Solução**: Execute `docker compose exec api npx prisma migrate deploy` antes de rodar `docker compose exec api npm run prisma:seed`.
-

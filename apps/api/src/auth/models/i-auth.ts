@@ -31,7 +31,9 @@ export interface AuthResponse {
  * Equivale aos headers `X-User-Id`/`X-User-Role` que o `/validate` legado
  * repassava ao Traefik após validar o token.
  */
-export type AuthenticatedUser = JwtPayload;
+export interface AuthenticatedUser extends JwtPayload {
+  id: string;
+}
 
 /** Request express com o usuário validado pelo `JwtAuthGuard`. */
 export interface AuthenticatedRequest extends Request {
