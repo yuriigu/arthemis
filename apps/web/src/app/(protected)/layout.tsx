@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import type { ReactNode } from "react";
 
-import { DashboardShell } from "./dashboard-shell";
+import { DashboardShell } from "@/components/layout/dashboard-shell";
 import { getAuthToken, getCurrentUser } from "@/lib/auth/server";
 
 export default async function ProtectedLayout({
