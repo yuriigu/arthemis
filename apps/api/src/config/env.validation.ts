@@ -6,6 +6,8 @@ import { z } from 'zod';
  */
 const DEFAULT_PORT = 8081;
 const DEFAULT_SERVICE_NAME = 'arthemis-api';
+const DEFAULT_THROTTLE_TTL = 60_000;
+const DEFAULT_THROTTLE_LIMIT = 100;
 
 /**
  * Validação das variáveis de ambiente executada no boot pelo ConfigModule.
@@ -53,4 +55,16 @@ export const envValidationSchema = z.object({
     .trim()
     .min(1, 'JWT_EXPIRES_IN must not be empty.')
     .default('24h'),
+
+  THROTTLE_TTL: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(DEFAULT_THROTTLE_TTL),
+
+  THROTTLE_LIMIT: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(DEFAULT_THROTTLE_LIMIT),
 });

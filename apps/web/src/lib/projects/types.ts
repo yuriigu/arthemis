@@ -1,18 +1,15 @@
-export type Sdg = {
-  id: number;
-  number: number;
-  name: string;
-  iconUrl: string;
-};
+import type { Sdg } from "../sdgs/types";
 
-export type Proponent = {
+export type { Sdg } from "../sdgs/types";
+
+export type Organization = {
   id: string;
   name: string;
   email: string;
 };
 
-export type ProjectProponent = {
-  proponentId: string;
+export type ProjectOrganization = {
+  organizationId: string;
   name: string;
   role: string;
   isPrimary: boolean;
@@ -24,8 +21,8 @@ export type Project = {
   justification: string;
   lifetimeStart: string;
   lifetimeEnd: string;
-  proponentId: string;
-  proponents: ProjectProponent[];
+  organizationId: string;
+  organizations: ProjectOrganization[];
   sdgs: Sdg[];
 };
 
@@ -46,7 +43,7 @@ export type CreateProjectInput = {
   justification: string;
   lifetimeStart: string;
   lifetimeEnd: string;
-  proponentId: string;
-  proponents: { proponentId: string; role: string }[];
+  organizationId: string;
+  organizations: { organizationId: string; role: string }[];
   sdgIds: number[];
 };

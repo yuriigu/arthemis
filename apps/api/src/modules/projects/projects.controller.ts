@@ -12,7 +12,19 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
+import {
+  ApiBadRequestResponse,
+  ApiCookieAuth,
+  ApiCreatedResponse,
+  ApiNoContentResponse,
+  ApiNotFoundResponse,
+  ApiOkResponse,
+  ApiParam,
+  ApiTags,
+  ApiUnauthorizedResponse,
+} from '@nestjs/swagger';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard.js';
+import { AUTH_COOKIE_NAME } from '../../auth/auth.constants.js';
 import { CreateProjectDto } from './dto/create-project.dto.js';
 import { FindProjectsQueryDto } from './dto/find-projects-query.dto.js';
 import { UpdateProjectDto } from './dto/update-project.dto.js';
@@ -30,18 +42,23 @@ import { ProjectsService } from './projects.service.js';
  */
 @Controller('projects')
 @UseGuards(JwtAuthGuard)
+@ApiTags('projects')
+@ApiCookieAuth(AUTH_COOKIE_NAME)
+@ApiUnauthorizedResponse({ description: 'Missing or invalid credentials.' })
 export class ProjectsController {
   constructor(private readonly projectsService: ProjectsService) {}
 
   /**
-   * POST /projects — Cria um projeto e seus vínculos com proponente principal,
-   * proponentes secundários e ODS dentro de uma única transação atômica.
+   * POST /projects — Cria um projeto e seus vínculos com organização principal,
+   * organizações secundárias e ODS dentro de uma única transação atômica.
    *
    * @param dto Dados validados de criação do projeto.
    * @returns Projeto criado com status HTTP 201 Created.
    */
   @Post()
   @HttpCode(HttpStatus.CREATED)
+  @ApiCreatedResponse({ description: 'Project created.' })
+  @ApiBadRequestResponse({ description: 'Invalid request body.' })
   async create(@Body() dto: CreateProjectDto): Promise<PublicProjectDetail> {
     return this.projectsService.create(dto);
   }
@@ -53,6 +70,7 @@ export class ProjectsController {
    * @returns Envelope padronizado { data: [...], meta: { total, page, limit, totalPages } }.
    */
   @Get()
+  @ApiOkResponse({ description: 'Paginated list of active projects.' })
   async findAll(
     @Query() query: FindProjectsQueryDto,
   ): Promise<PaginatedProjectsResponse<PublicProjectSummary>> {
@@ -61,12 +79,15 @@ export class ProjectsController {
 
   /**
    * GET /projects/:id — Detalhes completos de um projeto ativo.
-   * Retorna os dados do projeto, proponente principal, proponentes associados e ODS.
+   * Retorna os dados do projeto, organização principal, organizações associadas e ODS.
    *
    * @param id Identificador UUID do projeto.
    * @returns Projeto detalhado ou HTTP 404 se não for localizado.
    */
   @Get(':id')
+  @ApiParam({ name: 'id', format: 'uuid' })
+  @ApiOkResponse({ description: 'Project details.' })
+  @ApiNotFoundResponse({ description: 'Project not found.' })
   async findById(
     @Param('id', new ParseUUIDPipe()) id: string,
   ): Promise<PublicProjectDetail> {
@@ -82,6 +103,10 @@ export class ProjectsController {
    * @returns Projeto atualizado com status HTTP 200 OK.
    */
   @Patch(':id')
+  @ApiParam({ name: 'id', format: 'uuid' })
+  @ApiOkResponse({ description: 'Project updated.' })
+  @ApiBadRequestResponse({ description: 'Invalid request body.' })
+  @ApiNotFoundResponse({ description: 'Project not found.' })
   async update(
     @Param('id', new ParseUUIDPipe()) id: string,
     @Body() dto: UpdateProjectDto,
@@ -97,6 +122,9 @@ export class ProjectsController {
    */
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiParam({ name: 'id', format: 'uuid' })
+  @ApiNoContentResponse({ description: 'Project soft-deleted.' })
+  @ApiNotFoundResponse({ description: 'Project not found.' })
   async remove(@Param('id', new ParseUUIDPipe()) id: string): Promise<void> {
     await this.projectsService.remove(id);
   }

@@ -1,4 +1,5 @@
 import { Transform } from 'class-transformer';
+import { ApiProperty } from '@nestjs/swagger';
 import { IsEmail, IsNotEmpty, IsString, MaxLength } from 'class-validator';
 
 /**
@@ -13,6 +14,7 @@ import { IsEmail, IsNotEmpty, IsString, MaxLength } from 'class-validator';
  */
 export class LoginDto {
   /** Normalizado (trim + lowercase) antes de validar — mesmos passos do repositório. */
+  @ApiProperty({ example: 'user@example.com', maxLength: 150 })
   @Transform(({ value }): unknown =>
     typeof value === 'string' ? value.trim().toLowerCase() : value,
   )
@@ -21,6 +23,7 @@ export class LoginDto {
   @MaxLength(150, { message: 'email must be at most 150 characters long' })
   email!: string;
 
+  @ApiProperty({ example: 'strong-password' })
   @IsString({ message: 'password must be a string' })
   @IsNotEmpty({ message: 'password is required' })
   password!: string;

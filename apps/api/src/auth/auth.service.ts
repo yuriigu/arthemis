@@ -1,5 +1,6 @@
 import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
+import { withRequestId } from '../common/request-context.js';
 import type { PublicUser, UserRecord } from '../users/models/i-user.js';
 import { UsersService } from '../users/users.service.js';
 import { verifyPassword } from '../users/utils/password.util.js';
@@ -79,7 +80,7 @@ export class AuthService {
     const accessToken = await this.jwtService.signAsync(payload);
 
     // Log apenas do id: e-mail é dado pessoal e senha jamais é logada.
-    this.logger.log(`Login successful: ${user.id}`);
+    this.logger.log(withRequestId(`Login successful: ${user.id}`));
 
     return { access_token: accessToken };
   }

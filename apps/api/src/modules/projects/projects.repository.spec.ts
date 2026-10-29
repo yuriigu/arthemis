@@ -7,8 +7,8 @@ import {
 
 describe('ProjectsRepository', () => {
   const PROJECT_ID = 'a1b2c3d4-e5f6-4a1b-8c2d-3e4f5a6b7c8d';
-  const MAIN_PROPONENT_ID = '3f2504e0-4f89-41d3-9a0c-0305e82c3301';
-  const SECONDARY_PROPONENT_ID = '7c9e6679-7425-40de-944b-e07fc1f90ae7';
+  const MAIN_ORGANIZATION_ID = '3f2504e0-4f89-41d3-9a0c-0305e82c3301';
+  const SECONDARY_ORGANIZATION_ID = '7c9e6679-7425-40de-944b-e07fc1f90ae7';
   const SDG_UUID = 'sdg-uuid-1';
 
   let prisma: {
@@ -36,14 +36,14 @@ describe('ProjectsRepository', () => {
   });
 
   describe('createTransactional', () => {
-    it('executa a criação atômica do projeto, proponentes e ODS em uma transação do Prisma', async () => {
+    it('executa a criação atômica do projeto, organizações e ODS em uma transação do Prisma', async () => {
       const mockCreatedProject = { id: PROJECT_ID, name: 'Projeto Água Limpa' };
       const txMock = {
         project: {
           create: vi.fn().mockResolvedValue(mockCreatedProject),
           findUnique: vi.fn().mockResolvedValue(mockCreatedProject),
         },
-        projectProponent: {
+        projectOrganization: {
           create: vi.fn().mockResolvedValue({ id: 'pp-1' }),
         },
         projectSdg: {
@@ -51,9 +51,11 @@ describe('ProjectsRepository', () => {
         },
       };
 
-      prisma.$transaction.mockImplementation(async (callback: (tx: typeof txMock) => Promise<unknown>) => {
-        return callback(txMock);
-      });
+      prisma.$transaction.mockImplementation(
+        async (callback: (tx: typeof txMock) => Promise<unknown>) => {
+          return callback(txMock);
+        },
+      );
 
       const startDate = new Date(Date.UTC(2026, 0, 1));
       const endDate = new Date(Date.UTC(2026, 11, 31));
@@ -63,8 +65,10 @@ describe('ProjectsRepository', () => {
         lifetimeStart: startDate,
         lifetimeEnd: endDate,
         justification: '  Preservação de nascentes  ',
-        proponentId: MAIN_PROPONENT_ID,
-        proponents: [{ proponentId: SECONDARY_PROPONENT_ID, role: 'Co-executor' }],
+        organizationId: MAIN_ORGANIZATION_ID,
+        organizations: [
+          { organizationId: SECONDARY_ORGANIZATION_ID, role: 'Co-executor' },
+        ],
         sdgUuids: [SDG_UUID],
       });
 
@@ -75,13 +79,13 @@ describe('ProjectsRepository', () => {
           lifetimeStart: startDate,
           lifetimeEnd: endDate,
           justification: 'Preservação de nascentes',
-          proponentId: MAIN_PROPONENT_ID,
+          organizationId: MAIN_ORGANIZATION_ID,
         },
       });
-      expect(txMock.projectProponent.create).toHaveBeenCalledWith({
+      expect(txMock.projectOrganization.create).toHaveBeenCalledWith({
         data: {
           projectId: PROJECT_ID,
-          proponentId: SECONDARY_PROPONENT_ID,
+          organizationId: SECONDARY_ORGANIZATION_ID,
           role: 'Co-executor',
         },
       });
@@ -109,7 +113,7 @@ describe('ProjectsRepository', () => {
       });
     });
 
-    it('aplica o mesmo filtro de busca textual em name, justification e proponent.name na paginação e no count', async () => {
+    it('aplica o mesmo filtro de busca textual em name, justification e organization.name na paginação e no count', async () => {
       prisma.project.findMany.mockResolvedValue([]);
       prisma.project.count.mockResolvedValue(3);
 
@@ -122,14 +126,20 @@ describe('ProjectsRepository', () => {
         OR: [
           { name: { contains: 'floresta', mode: 'insensitive' } },
           { justification: { contains: 'floresta', mode: 'insensitive' } },
-          { proponent: { name: { contains: 'floresta', mode: 'insensitive' } } },
+          {
+            organization: {
+              name: { contains: 'floresta', mode: 'insensitive' },
+            },
+          },
         ],
       };
 
       expect(prisma.project.findMany).toHaveBeenCalledWith(
         expect.objectContaining({ where: expectedWhere }),
       );
-      expect(prisma.project.count).toHaveBeenCalledWith({ where: expectedWhere });
+      expect(prisma.project.count).toHaveBeenCalledWith({
+        where: expectedWhere,
+      });
     });
   });
 
@@ -152,13 +162,15 @@ describe('ProjectsRepository', () => {
     it('marca deletedAt no projeto e em seus vínculos ativos dentro de transação', async () => {
       const txMock = {
         project: { update: vi.fn() },
-        projectProponent: { updateMany: vi.fn() },
+        projectOrganization: { updateMany: vi.fn() },
         projectSdg: { updateMany: vi.fn() },
       };
 
-      prisma.$transaction.mockImplementation(async (callback: (tx: typeof txMock) => Promise<unknown>) => {
-        return callback(txMock);
-      });
+      prisma.$transaction.mockImplementation(
+        async (callback: (tx: typeof txMock) => Promise<unknown>) => {
+          return callback(txMock);
+        },
+      );
 
       await repository.softDelete(PROJECT_ID);
 
@@ -166,7 +178,7 @@ describe('ProjectsRepository', () => {
         where: { id: PROJECT_ID },
         data: expect.objectContaining({ deletedAt: expect.any(Date) }),
       });
-      expect(txMock.projectProponent.updateMany).toHaveBeenCalledWith({
+      expect(txMock.projectOrganization.updateMany).toHaveBeenCalledWith({
         where: { projectId: PROJECT_ID, deletedAt: null },
         data: expect.objectContaining({ deletedAt: expect.any(Date) }),
       });

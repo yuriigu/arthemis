@@ -6,10 +6,10 @@ export const createProjectSchema = z
     justification: z.string().trim().min(10, "Mínimo de 10 caracteres"),
     lifetimeStart: z.string().min(1, "Informe o início"),
     lifetimeEnd: z.string().min(1, "Informe o fim"),
-    proponentId: z.string().min(1, "Escolha o proponente principal"),
-    proponents: z.array(
+    organizationId: z.string().min(1, "Escolha a organização principal"),
+    organizations: z.array(
       z.object({
-        proponentId: z.string().min(1, "Escolha o proponente"),
+        organizationId: z.string().min(1, "Escolha a organização"),
         role: z.string().trim().min(1, "Informe o papel"),
       }),
     ),

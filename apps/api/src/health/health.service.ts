@@ -1,5 +1,6 @@
 import { HttpStatus, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { withRequestId } from '../common/request-context.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import type { HealthCheck, HealthCheckResult } from './models/i-health.js';
 
@@ -55,7 +56,9 @@ export class HealthService {
       return { status: 'up', message: DATABASE_UP_MESSAGE };
     } catch (error) {
       const message = describeDatabaseError(error);
-      this.logger.error(`Database healthcheck failed: ${message}`);
+      this.logger.error(
+        withRequestId(`Database healthcheck failed: ${message}`),
+      );
 
       return { status: 'down', message };
     }

@@ -8,31 +8,31 @@ O que já existe:
 
 - Esqueleto Nest.js rodando na porta **8081** (compatível com o gateway Traefik legado).
 - Validação de variáveis de ambiente no boot (fail-fast).
-- Prisma ORM configurado com driver adapter `pg` (models `User`, `Proponent`, `Project`, `ProjectProponent`, `Sdg` e `ProjectSdg` + migrations aplicadas).
+- Prisma ORM configurado com driver adapter `pg` (models `User`, `Organization`, `Project`, `ProjectOrganization`, `Sdg`, `ProjectSdg`, `Activity`, `Indicator`, `Location` e `Observation` + migrations aplicadas).
 - `docker-compose.yml` sobe o PostgreSQL 16 e a API NestJS containerizada, com migrations aplicadas no startup.
 - `GET /healthcheck` com ping real no banco (200/503).
 - Módulo de usuários (`POST /users`, `GET /users/:id`) com hash bcrypt e seed inicial.
 - Módulo de autenticação (`POST /auth/login`, `POST /auth/logout`, `GET /auth/me`) com JWT (HS256), cookie HttpOnly e guards globais.
-- Modelagem de proponentes, projetos e ODS (migration `add_proponent_project_sdg_models`) com UUID, soft delete e seed dos 17 ODS.
-- Módulo de proponentes (`/proponents`) com CRUD, listagem para seletores, unicidade de e-mail (409), soft delete bloqueado por vínculos (409) e `JwtAuthGuard`.
+- Modelagem de organizações, projetos e ODS (migration `add_organization_project_sdg_models`) com UUID, soft delete e seed dos 17 ODS.
+- Módulo de organizações (`/organizations`) com CRUD, listagem paginada, unicidade de e-mail (409), soft delete bloqueado por vínculos (409) e `JwtAuthGuard`.
 
 ## Stack
 
-| Camada    | Tecnologia                                       |
-| --------- | ------------------------------------------------ |
-| Runtime   | Node.js 22+                                      |
-| Framework | Nest.js 12 (TypeScript, ESM)                     |
+| Camada    | Tecnologia                                        |
+| --------- | ------------------------------------------------- |
+| Runtime   | Node.js 22+                                       |
+| Framework | Nest.js 12 (TypeScript, ESM)                      |
 | ORM       | Prisma 7 (`prisma-client` + `@prisma/adapter-pg`) |
-| Banco     | PostgreSQL 16 (Docker Compose)                   |
-| Testes    | Vitest + Supertest                               |
-| Lint      | oxlint + Prettier                                |
+| Banco     | PostgreSQL 16 (Docker Compose)                    |
+| Testes    | Vitest + Supertest                                |
+| Lint      | oxlint + Prettier                                 |
 
 ## Estrutura
 
 ```text
 apps/api
-├── prisma/schema.prisma          # models User/Proponent/Project/ProjectProponent/Sdg/ProjectSdg + generator/datasource
-├── prisma/migrations/            # create_users_table + add_proponent_project_sdg_models (aplicadas)
+├── prisma/schema.prisma          # models User/Organization/Project/Activity/Indicator/Location/Observation + generator/datasource
+├── prisma/migrations/            # create_users_table + add_organization_project_sdg_models (aplicadas)
 ├── prisma/seed.ts                # seed idempotente: 17 ODS + usuário inicial
 ├── prisma.config.ts              # config do Prisma CLI: schema, migrations, seed e DATABASE_URL
 ├── docker-compose.yml            # somente o PostgreSQL 16
@@ -44,7 +44,7 @@ apps/api
     ├── prisma/                   # PrismaModule/PrismaService (global)
     ├── users/                    # UsersModule/Controller/Service/Repository + DTOs
     ├── auth/                     # AuthModule/Controller/Service + DTO, guard e estratégia JWT
-    ├── modules/proponents/       # ProponentsModule/Controller/Service/Repository + DTOs (CRUD + seletores)
+    ├── modules/organizations/       # OrganizationsModule/Controller/Service/Repository + DTOs (CRUD + seletores)
     ├── app.module.ts
     └── main.ts                   # bootstrap (porta 8081, fail-fast)
 ```
@@ -70,23 +70,33 @@ npm run start:dev          # sobe a API em http://localhost:8081
 
 ## Variáveis de ambiente
 
-| Variável            | Obrigatória   | Default        | Descrição                              |
-| ------------------- | ------------- | -------------- | -------------------------------------- |
-| `PORT`              | não           | `8081`         | Porta HTTP da API.                     |
-| `SERVICE_NAME`      | não           | `arthemis-api` | Valor do campo `service` no healthcheck. |
-| `NODE_ENV`          | não           | `development`  | `development`, `test` ou `production`. |
-| `DATABASE_URL`      | **sim**       | —              | Connection string usada pelo Prisma.   |
-| `POSTGRES_USER`     | sim (Compose) | —              | Usuário criado no container.           |
-| `POSTGRES_PASSWORD` | sim (Compose) | —              | Senha do usuário.                      |
-| `POSTGRES_DB`       | sim (Compose) | —              | Nome do banco.                         |
-| `JWT_SECRET`        | **sim**       | —              | Segredo de assinatura HS256 do JWT (mínimo 32 caracteres). |
+| Variável            | Obrigatória   | Default        | Descrição                                                         |
+| ------------------- | ------------- | -------------- | ----------------------------------------------------------------- |
+| `PORT`              | não           | `8081`         | Porta HTTP da API.                                                |
+| `SERVICE_NAME`      | não           | `arthemis-api` | Valor do campo `service` no healthcheck.                          |
+| `NODE_ENV`          | não           | `development`  | `development`, `test` ou `production`.                            |
+| `DATABASE_URL`      | **sim**       | —              | Connection string usada pelo Prisma.                              |
+| `POSTGRES_USER`     | sim (Compose) | —              | Usuário criado no container.                                      |
+| `POSTGRES_PASSWORD` | sim (Compose) | —              | Senha do usuário.                                                 |
+| `POSTGRES_DB`       | sim (Compose) | —              | Nome do banco.                                                    |
+| `JWT_SECRET`        | **sim**       | —              | Segredo de assinatura HS256 do JWT (mínimo 32 caracteres).        |
 | `JWT_EXPIRES_IN`    | não           | `24h`          | Validade do `access_token` (formato do `ms`: `15m`, `24h`, `7d`). |
+| `THROTTLE_TTL`      | não           | `60000`        | Janela do rate limit global, em milissegundos.                    |
+| `THROTTLE_LIMIT`    | não           | `100`          | Máximo de requisições por IP em cada janela global.               |
 
 A validação (`src/config/env.validation.ts`) roda no boot: sem `DATABASE_URL` a
 aplicação encerra com erro em vez de subir sem banco — comportamento herdado do
 serviço `auth` legado. As variáveis `POSTGRES_*` são exigidas pelo
 `docker-compose.yml` (o Compose falha explicitamente se faltarem) e devem bater
 com a `DATABASE_URL`.
+
+## Documentação e rate limiting
+
+O Swagger UI fica disponível em `/api/docs` e descreve os endpoints, parâmetros
+e DTOs da API. A autenticação usa o cookie HttpOnly `arthemis_token`.
+
+O limitador global responde `429` no formato padrão de erro. Ele permite até
+`THROTTLE_LIMIT` requisições por IP a cada `THROTTLE_TTL` milissegundos.
 
 ## Endpoints
 
@@ -138,10 +148,10 @@ default `visitor` e CHECK no banco (`admin | manager | visitor`), e-mail único
 (o `username` do legado foi substituído pelo e-mail como identidade) e o hash de
 senha em `password_hash`.
 
-| Método | Rota         | Comportamento                                                                |
-| ------ | ------------ | ---------------------------------------------------------------------------- |
+| Método | Rota         | Comportamento                                                                                                                   |
+| ------ | ------------ | ------------------------------------------------------------------------------------------------------------------------------- |
 | `POST` | `/users`     | `201` com `{ id, email, role, createdAt, updatedAt }`; `400` corpo inválido; `409` e-mail já cadastrado; `401` sem autenticação |
-| `GET`  | `/users/:id` | `200` com o usuário (sem hash); `400` id que não é UUID; `401` sem autenticação; `403` sem papel admin; `404` não encontrado |
+| `GET`  | `/users/:id` | `200` com o usuário (sem hash); `400` id que não é UUID; `401` sem autenticação; `403` sem papel admin; `404` não encontrado    |
 
 As rotas exigem autenticação por padrão. `GET /`, `GET /healthcheck`,
 `POST /auth/login` e `POST /auth/logout` são públicas; `GET /users/:id` exige
@@ -188,7 +198,7 @@ Variáveis opcionais: `SEED_USER_EMAIL`, `SEED_USER_PASSWORD` e `SEED_USER_ROLE`
 (veja o `.env.example`). O seed é idempotente e recusa a senha default quando
 `NODE_ENV=production` sem `SEED_USER_PASSWORD` explícito.
 
-## Proponentes, projetos e ODS
+## Organizações, projetos e ODS
 
 Modelagem de domínio portada do legado (`legacy/brain/internal/models`, tabelas
 criadas pelo `AutoMigrate` do gorm) e consumida pelo
@@ -196,20 +206,30 @@ criadas pelo `AutoMigrate` do gorm) e consumida pelo
 do legado** (`@@map`), usam **UUID** como PK e **soft delete** (`deleted_at`) em
 todas as entidades de domínio. Os relacionamentos são bidirecionais.
 
-| Model             | Tabela               | Observações                                                                 |
-| ----------------- | -------------------- | --------------------------------------------------------------------------- |
-| `Proponent`       | `proponents`         | organização proponente (`name`, `email`).                                   |
-| `Project`         | `projects`           | `proponent_id` (FK), `name` varchar(150), `lifetime_start/end` (`date`), `justification`. |
-| `ProjectProponent`| `project_proponents` | N:N projeto↔proponente com `role`; unique `(project_id, proponent_id)`.     |
-| `Sdg`             | `sdgs`               | ODS da ONU: `number` **único** (1..17), `name`, `icon_url`.                 |
-| `ProjectSdg`      | `project_sdg`        | N:N projeto↔ODS; unique `(project_id, sdg_id)`.                             |
+| Model                 | Tabela                  | Observações                                                                                      |
+| --------------------- | ----------------------- | ------------------------------------------------------------------------------------------------ |
+| `Organization`        | `organizations`         | organização organização (`name`, `email`).                                                       |
+| `Project`             | `projects`              | `organization_id` (FK), `name` varchar(150), `lifetime_start/end` (`date`), `justification`.     |
+| `ProjectOrganization` | `project_organizations` | N:N projeto↔organização com `role`; unique `(project_id, organization_id)`.                      |
+| `Sdg`                 | `sdgs`                  | ODS da ONU: `number` **único** (1..17), `name`, `icon_url`.                                      |
+| `ProjectSdg`          | `project_sdg`           | N:N projeto↔ODS; unique `(project_id, sdg_id)`.                                                  |
+| `Activity`            | `activities`            | Projeto 1:N; `name`, `description`, `justification`, datas civis de início/fim; indicadores 1:N. |
+| `ActivityLocation`    | `activity_locations`    | N:N entre atividades e localizações, com soft delete do vínculo.                                 |
+| `Indicator`           | `indicators`            | Atividade/localização; valores de baseline e referência; observações 1:N.                        |
+| `Location`            | `locations`             | Projeto 1:N; nome, descrição, ecossistema, extensão, país e posição JSONB.                       |
+| `Observation`         | `observations`          | Indicador 1:N; valor, data civil e posição JSONB.                                                |
+
+`Project.status` usa `Draft`, `Listed`, `Under_Assessment` ou `Verified`,
+inicia em `Draft` e tem a constraint SQL `chk_projects_status`. A transição para
+`Listed` via `PATCH /projects/:id` exige justificativa não vazia e ao menos uma
+localização ativa; caso contrário, a API responde `422`.
 
 O model `User` ganhou, com paridade ao legado
 (`legacy/brain/internal/models/user.go`):
 
 - `username` (varchar(150), **único**) — opcional no banco porque o `POST /users`
   atual cria o usuário só com e-mail/senha;
-- `proponent_id` → `proponents.id`, o relacionamento **opcional** `User -> Proponent`
+- `organization_id` → `organizations.id`, o relacionamento **opcional** `User -> Organization`
   (`ON DELETE SET NULL`).
 
 ### Seed dos ODS
@@ -239,8 +259,38 @@ npm run test:integration    # test/prisma.integration-spec.ts (+ users/auth)
 
 `test/prisma.integration-spec.ts` valida: migrations aplicando em **banco limpo
 sem erro de FK/constraint** (schema descartável + `prisma migrate deploy`), as
-uniques compostas e a FK `users.proponent_id`, a associação `User <-> Proponent`
+uniques compostas e a FK `users.organization_id`, a associação `User <-> Organization`
 com leitura do `username` e a idempotência do seed (17 ODS após duas execuções).
+
+### Projeção e observação
+
+As rotas abaixo são autenticadas e retornam registros ativos (filtro
+`deleted_at IS NULL`). As listagens aceitam `page` e `limit` (padrões `1` e
+`10`, máximo `100`); `activities`, `indicators` e `locations` também aceitam
+filtros pelos relacionamentos e `search`.
+
+| Método  | Rota                | Comportamento                                                                                                                                                                            |
+| ------- | ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `POST`  | `/activities`       | Cria atividade; aceita `projectId`, `name`, `startDate`, `endDate`, descrição, justificativa e `locationIds` opcionais. Datas devem ser `YYYY-MM-DD` e o fim não pode preceder o início. |
+| `GET`   | `/activities`       | Lista atividades; filtros opcionais `projectId` e `search`.                                                                                                                              |
+| `GET`   | `/activities/:id`   | Consulta atividade e seus `locationIds` ativos.                                                                                                                                          |
+| `PATCH` | `/activities/:id`   | Atualiza parcialmente atividade, datas e localidades vinculadas.                                                                                                                         |
+| `POST`  | `/indicators`       | Cria indicador com `activityId`, `locationId`, `name`, valores baseline/referência e campos textuais opcionais.                                                                          |
+| `GET`   | `/indicators`       | Lista indicadores; filtros opcionais `activityId`, `locationId` e `search`.                                                                                                              |
+| `GET`   | `/indicators/:id`   | Consulta indicador.                                                                                                                                                                      |
+| `PATCH` | `/indicators/:id`   | Atualiza parcialmente indicador e seus vínculos de atividade/localidade.                                                                                                                 |
+| `POST`  | `/locations`        | Cria localidade com `projectId`, `name`, `ecosystem`, `extent`, `country`; `description` e `position` JSON são opcionais.                                                                |
+| `GET`   | `/locations`        | Lista localizações; filtros opcionais `projectId` e `search`.                                                                                                                            |
+| `GET`   | `/locations/:id`    | Consulta localização.                                                                                                                                                                    |
+| `PATCH` | `/locations/:id`    | Atualiza parcialmente localidade e posição GeoJSON.                                                                                                                                      |
+| `POST`  | `/observations`     | Cria observação com `indicatorId`, `value`, data `YYYY-MM-DD` e `position` JSON opcional.                                                                                                |
+| `GET`   | `/observations`     | Lista observações; filtro opcional `indicatorId`.                                                                                                                                        |
+| `GET`   | `/observations/:id` | Consulta observação.                                                                                                                                                                     |
+| `PATCH` | `/observations/:id` | Atualiza parcialmente observação, data, valor, posição e indicador vinculado.                                                                                                            |
+
+Criação responde `201`; corpo inválido responde `400`, referências inexistentes
+ou removidas logicamente respondem `404`, e identificadores de rota inválidos
+respondem `400`.
 
 ## Autenticação
 
@@ -251,11 +301,11 @@ JWT **HS256**, claims `sub` (UUID do usuário), `email` e `role`, validade de
 `JwtAuthGuard`/`JwtStrategy`. O login define esse cookie como HttpOnly, SameSite
 Lax e Secure em produção.
 
-| Método | Rota         | Comportamento |
-| ------ | ------------ | ------------- |
-| `POST` | `/auth/login` | `200` com `{ "access_token": "..." }`; `400` corpo inválido; `401` credenciais inválidas |
-| `POST` | `/auth/logout` | `200` e limpa o cookie de autenticação |
-| `GET`  | `/auth/me`    | `200` com o perfil do usuário do token (sem hash); `401` sem token, inválido ou expirado |
+| Método | Rota           | Comportamento                                                                            |
+| ------ | -------------- | ---------------------------------------------------------------------------------------- |
+| `POST` | `/auth/login`  | `200` com `{ "access_token": "..." }`; `400` corpo inválido; `401` credenciais inválidas |
+| `POST` | `/auth/logout` | `200` e limpa o cookie de autenticação                                                   |
+| `GET`  | `/auth/me`     | `200` com o perfil do usuário do token (sem hash); `401` sem token, inválido ou expirado |
 
 Regras herdadas do legado:
 
@@ -281,39 +331,42 @@ curl -i -X POST http://localhost:8081/auth/login \
 curl -i http://localhost:8081/auth/me -H 'Authorization: Bearer <token>'
 ```
 
-## Proponentes (CRUD + seletores)
+## Organizações (CRUD + seletores)
 
-Portabilidade do `ProponentHandler` legado
-(`legacy/brain/internal/handlers/proponent.go`) para a arquitetura em camadas
-(`src/modules/proponents`), com as regras de negócio que o legado não tinha. O
-recurso é `/proponents` (plural, REST) e **todas as rotas exigem Bearer válido**
+Portabilidade do `OrganizationHandler` legado
+(`legacy/brain/internal/handlers/organization.go`) para a arquitetura em camadas
+(`src/modules/organizations`), com as regras de negócio que o legado não tinha. O
+recurso é `/organizations` (plural, REST) e **todas as rotas exigem Bearer válido**
 (`JwtAuthGuard`) — no legado o gateway Traefik fazia o `forwardAuth`.
 
-| Método   | Rota                  | Sucesso                                                     | Erros                                                            |
-| -------- | --------------------- | ----------------------------------------------------------- | ---------------------------------------------------------------- |
-| `GET`    | `/proponents?search=` | `200` lista (array puro, sem paginação; `200 []` se vazia)   | `400` query fora do contrato; `401`                              |
-| `POST`   | `/proponents`         | `201` proponente criado                                      | `400` corpo inválido; `401`; `409` e-mail duplicado              |
-| `GET`    | `/proponents/:id`     | `200` proponente                                             | `400` id não-UUID; `401`; `404`                                  |
-| `PATCH`  | `/proponents/:id`     | `200` proponente atualizado (`PartialType` do DTO de criação) | `400`; `401`; `404`; `409` e-mail duplicado                      |
-| `DELETE` | `/proponents/:id`     | `204` (soft delete via `deleted_at`)                        | `400`; `401`; `404`; `409` projetos/usuários vinculados          |
+| Método   | Rota                                     | Sucesso                                                        | Erros                                                   |
+| -------- | ---------------------------------------- | -------------------------------------------------------------- | ------------------------------------------------------- |
+| `GET`    | `/organizations?page=1&limit=10&search=` | `200` `{ data, meta }` paginado                                | `400` query fora do contrato; `401`                     |
+| `POST`   | `/organizations`                         | `201` organização criado                                       | `400` corpo inválido; `401`; `409` e-mail duplicado     |
+| `GET`    | `/organizations/:id`                     | `200` organização                                              | `400` id não-UUID; `401`; `404`                         |
+| `PATCH`  | `/organizations/:id`                     | `200` organização atualizado (`PartialType` do DTO de criação) | `400`; `401`; `404`; `409` e-mail duplicado             |
+| `DELETE` | `/organizations/:id`                     | `204` (soft delete via `deleted_at`)                           | `400`; `401`; `404`; `409` projetos/usuários vinculados |
 
 Regras de negócio:
 
 - **e-mail único**: `POST`/`PATCH` respondem `409 Conflict` quando já existe
-  proponente **ativo** com o mesmo e-mail (normalizado com `trim + lowercase`). O
+  organização **ativo** com o mesmo e-mail (normalizado com `trim + lowercase`). O
   `email` do schema **não** é `unique` (paridade com o gorm legado, que só exigia
   `not null`), então a checagem é feita na camada de serviço; o e-mail de um
-  proponente excluído logicamente pode ser reaproveitado;
-- **listagem para seletores**: `GET /proponents` devolve um **array puro** (sem
-  paginação) apenas com registros ativos, ordenado por `name`, e aceita
-  `?search=` para filtrar por trecho do nome (case-insensitive, `ILIKE`). Sem
-  registros: `200 []`;
+  organização excluído logicamente pode ser reaproveitado;
+- **listagem paginada**: `GET /organizations` devolve `{ data, meta }` com
+  registros ativos ordenados por `name`. `page` (padrão `1`) e `limit` (padrão
+  `10`, máximo `100`) controlam a paginação; `search` filtra por trecho do nome
+  (case-insensitive, `ILIKE`). `meta` inclui `total`, `page`, `limit` e
+  `totalPages`;
 - **política de exclusão**: `DELETE` aplica **soft delete** (`deleted_at`) e
   responde `409 Conflict` quando ainda existem **projetos ativos**
-  (`projects.deleted_at IS NULL`) ou **usuários vinculados** (`users.proponent_id`)
-  — o legado apagava o proponente e deixava projeto órfão, já que a FK não existia;
+  (`projects.deleted_at IS NULL`) ou **usuários vinculados** (`users.organization_id`)
+  — o legado apagava o organização e deixava projeto órfão, já que a FK não existia;
 - o `deletedAt` nunca aparece na resposta (`select` público + `WHERE deleted_at IS
-  NULL` no repositório).
+NULL` no repositório).
+- erros HTTP usam o envelope `{ code, message, details, timestamp }`; erros
+  inesperados respondem `500` sem expor detalhes internos.
 
 ```bash
 TOKEN=$(curl -s -X POST http://localhost:8081/auth/login \
@@ -322,49 +375,51 @@ TOKEN=$(curl -s -X POST http://localhost:8081/auth/login \
   | sed -E 's/.*"access_token":"([^"]+)".*/\1/')
 
 # listagem para seletor (sem registros => 200 [])
-curl -i http://localhost:8081/proponents -H "Authorization: Bearer $TOKEN"
+curl -i http://localhost:8081/organizations -H "Authorization: Bearer $TOKEN"
 
 # criação (409 se o e-mail já existir)
-curl -i -X POST http://localhost:8081/proponents \
+curl -i -X POST http://localhost:8081/organizations \
   -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
   -d '{"name":"Instituto Arthemis","email":"contato@arthemis.test"}'
 
 # exclusão lógica (409 se houver projeto/usuário vinculado)
-curl -i -X DELETE http://localhost:8081/proponents/<id> \
+curl -i -X DELETE http://localhost:8081/organizations/<id> \
   -H "Authorization: Bearer $TOKEN"
 ```
 
-Testes do módulo: `src/modules/proponents/*.spec.ts` (unitários do
-service/repository), `test/proponents.e2e-spec.ts` (contrato HTTP + guard, sem
-banco) e `test/proponents.integration-spec.ts` (soft delete e travas de vínculo
+Testes do módulo: `src/modules/organizations/*.spec.ts` (unitários do
+service/repository), `test/organizations.e2e-spec.ts` (contrato HTTP + guard, sem
+banco) e `test/organizations.integration-spec.ts` (soft delete e travas de vínculo
 no Postgres real).
 
 ## Scripts
 
-| Script                    | Descrição                                            |
-| ------------------------- | ---------------------------------------------------- |
-| `npm run start:dev`       | Sobe a API em modo watch.                            |
-| `npm run start:prod`      | Executa o build (`dist/`).                           |
-| `npm run build`           | Compila o projeto.                                   |
-| `npm test`                | Testes unitários (Vitest).                           |
-| `npm run test:e2e`        | Testes de contrato HTTP (sem banco).                 |
-| `npm run test:integration`| Testes com o PostgreSQL real (requer `docker compose up -d`). |
-| `npm run lint`            | oxlint.                                              |
-| `npm run format`          | Prettier.                                            |
-| `npm run prisma:generate` | Gera o Prisma Client em `src/generated/prisma`.      |
-| `npm run prisma:seed`     | Cria/atualiza o usuário de desenvolvimento (idempotente). |
-| `npm run db:migrate`      | Cria/aplica migrations em desenvolvimento.           |
-| `npm run db:push`         | Sincroniza o schema com o banco sem gerar migration. |
+| Script                     | Descrição                                                     |
+| -------------------------- | ------------------------------------------------------------- |
+| `npm run start:dev`        | Sobe a API em modo watch.                                     |
+| `npm run start:prod`       | Executa o build (`dist/`).                                    |
+| `npm run build`            | Compila o projeto.                                            |
+| `npm test`                 | Testes unitários (Vitest).                                    |
+| `npm run test:e2e`         | Testes de contrato HTTP (sem banco).                          |
+| `npm run test:integration` | Testes com o PostgreSQL real (requer `docker compose up -d`). |
+| `npm run lint`             | oxlint.                                                       |
+| `npm run format`           | Prettier.                                                     |
+| `npm run prisma:generate`  | Gera o Prisma Client em `src/generated/prisma`.               |
+| `npm run prisma:seed`      | Cria/atualiza o usuário de desenvolvimento (idempotente).     |
+| `npm run db:migrate`       | Cria/aplica migrations em desenvolvimento.                    |
+| `npm run db:push`          | Sincroniza o schema com o banco sem gerar migration.          |
 
 ## Banco de dados e Docker
 
 A infraestrutura local do backend pode ser executada de forma isolada através do `docker-compose.yml` da pasta `apps/api`, que orquestra o **PostgreSQL 16** (`postgres`) e a **API NestJS** (`api`) na rede interna `api-internal`.
 
 ### Pré-requisitos
+
 - **Docker Desktop** instalado no Windows com a engine WSL2 ativa. O aplicativo Docker Desktop precisa estar em execução (ícone da baleia na bandeja do sistema).
 - **Node.js 22+** e **npm 10+** (para comandos locais e testes fora do container).
 
 ### Configuração de Ambiente (.env)
+
 Antes de subir os serviços, crie seu arquivo `.env` a partir do modelo:
 
 ```powershell
@@ -373,6 +428,7 @@ Copy-Item .env.example .env
 ```
 
 O arquivo define:
+
 - Credenciais do banco: `POSTGRES_USER=arthemis_user`, `POSTGRES_PASSWORD=arthemis_password`, `POSTGRES_DB=arthemis_db`
 - Connection string para conexão local no Windows: `DATABASE_URL="postgresql://arthemis_user:arthemis_password@localhost:5432/arthemis_db?schema=public"`
 - O Docker Compose injeta automaticamente o hostname `postgres` dentro da rede de containers para a API.
@@ -382,6 +438,7 @@ O arquivo define:
 ### Comandos de Operação (Windows PowerShell)
 
 #### 1. Executados no Host (pasta `apps/api`)
+
 ```powershell
 # Subir o PostgreSQL e a API em background (com build):
 docker compose up -d --build
@@ -406,6 +463,7 @@ docker compose down -v
 ```
 
 #### 2. Executados dentro dos Containers (via `docker compose exec`)
+
 ```powershell
 # Aplicar migrations pendentes do Prisma no banco do container:
 docker compose exec api npx prisma migrate deploy
@@ -421,7 +479,9 @@ docker compose exec postgres psql -U arthemis_user -d arthemis_db
 ```
 
 #### 3. Executados no Host fora do Docker (desenvolvimento híbrido)
+
 Se preferir rodar apenas o banco no Docker e a API rodando no Node.js local:
+
 ```powershell
 # 1. Suba apenas o PostgreSQL:
 docker compose up -d postgres
@@ -439,6 +499,7 @@ npm run start:dev
 ---
 
 ### Acesso à API e Verificação de Saúde
+
 - **Acesso HTTP**: `http://localhost:8081`
 - **Smoke test**: `GET http://localhost:8081/` -> Responde `Hello World!`
 - **Healthcheck do banco e API**: `GET http://localhost:8081/healthcheck`
@@ -447,20 +508,22 @@ npm run start:dev
 ---
 
 ### Conexão ao PostgreSQL por Ferramentas Externas (Host Windows)
+
 Você pode conectar clientes SQL (DBeaver, pgAdmin, TablePlus, VSCode Database Client, etc.) rodando diretamente no Windows utilizando a porta mapeada `5432`:
 
-| Parâmetro | Valor |
-| :--- | :--- |
-| **Host** | `localhost` ou `127.0.0.1` |
-| **Porta** | `5432` |
-| **Database** | `arthemis_db` |
-| **Usuário** | `arthemis_user` |
-| **Senha** | `arthemis_password` |
-| **Schema** | `public` |
+| Parâmetro    | Valor                      |
+| :----------- | :------------------------- |
+| **Host**     | `localhost` ou `127.0.0.1` |
+| **Porta**    | `5432`                     |
+| **Database** | `arthemis_db`              |
+| **Usuário**  | `arthemis_user`            |
+| **Senha**    | `arthemis_password`        |
+| **Schema**   | `public`                   |
 
 ---
 
 ### Persistência de Dados
+
 Os dados do banco de dados são mantidos de forma persistente através do volume nomeado `arthemis_api_postgres_data` montado em `/var/lib/postgresql/data`.
 Executar `docker compose down` preserva o volume e todos os dados gravados. Apenas o uso explícito da flag `-v` (`docker compose down -v`) descarta o volume.
 

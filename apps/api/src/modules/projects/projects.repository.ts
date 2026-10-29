@@ -1,21 +1,22 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '../../generated/prisma/client.js';
+import type { ProjectStatus } from '../../generated/prisma/client.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
-import { PUBLIC_PROPONENT_SELECT } from '../proponents/proponents.repository.js';
+import { PUBLIC_ORGANIZATION_SELECT } from '../organizations/organizations.repository.js';
 import { PUBLIC_SDG_SELECT } from '../sdgs/sdgs.repository.js';
 
 /**
  * Definição dos relacionamentos completos carregados para exibição de detalhes do projeto.
  */
 export const PROJECT_DETAILS_INCLUDE = {
-  proponent: {
-    select: PUBLIC_PROPONENT_SELECT,
+  organization: {
+    select: PUBLIC_ORGANIZATION_SELECT,
   },
-  projectProponents: {
+  projectOrganizations: {
     where: { deletedAt: null },
     include: {
-      proponent: {
-        select: PUBLIC_PROPONENT_SELECT,
+      organization: {
+        select: PUBLIC_ORGANIZATION_SELECT,
       },
     },
   },
@@ -32,14 +33,52 @@ export const PROJECT_DETAILS_INCLUDE = {
       },
     },
   },
+  activities: {
+    where: { deletedAt: null },
+    orderBy: { createdAt: 'asc' as const },
+    select: {
+      id: true,
+      projectId: true,
+      name: true,
+      description: true,
+      justification: true,
+      startDate: true,
+      endDate: true,
+      createdAt: true,
+      updatedAt: true,
+      activityLocations: {
+        where: {
+          deletedAt: null,
+          location: { deletedAt: null },
+        },
+        select: { locationId: true },
+      },
+    },
+  },
+  locations: {
+    where: { deletedAt: null },
+    orderBy: { createdAt: 'asc' as const },
+    select: {
+      id: true,
+      projectId: true,
+      name: true,
+      description: true,
+      ecosystem: true,
+      extent: true,
+      country: true,
+      position: true,
+      createdAt: true,
+      updatedAt: true,
+    },
+  },
 } as const;
 
 /**
  * Definição dos relacionamentos carregados para a listagem paginada (evita overfetching).
  */
 export const PROJECT_SUMMARY_INCLUDE = {
-  proponent: {
-    select: PUBLIC_PROPONENT_SELECT,
+  organization: {
+    select: PUBLIC_ORGANIZATION_SELECT,
   },
   projectSdgs: {
     where: { deletedAt: null },
@@ -68,17 +107,17 @@ export type ProjectWithSummary = Prisma.ProjectGetPayload<{
 
 /**
  * Repositório responsável pelo acesso e persistência transacional de projetos,
- * proponentes associados e vínculos com ODS.
+ * organizações associadas e vínculos com ODS.
  */
 @Injectable()
 export class ProjectsRepository {
   constructor(private readonly prisma: PrismaService) {}
 
   /**
-   * Cria um projeto e todos os seus vínculos com proponentes associados e ODS
+   * Cria um projeto e todos os seus vínculos com organizações associadas e ODS
    * dentro de uma única transação atômica do Prisma ($transaction).
    *
-   * @param data Dados validados do projeto, proponentes secundários e IDs de ODS.
+   * @param data Dados validados do projeto, organizações secundárias e IDs de ODS.
    * @returns Projeto recém-criado com todos os relacionamentos preenchidos.
    */
   async createTransactional(data: {
@@ -86,9 +125,10 @@ export class ProjectsRepository {
     lifetimeStart: Date;
     lifetimeEnd: Date;
     justification?: string;
-    proponentId: string;
-    proponents?: { proponentId: string; role?: string }[];
+    organizationId: string;
+    organizations?: { organizationId: string; role?: string }[];
     sdgUuids: string[];
+    status?: ProjectStatus;
   }): Promise<ProjectWithDetails> {
     return this.prisma.$transaction(async (tx) => {
       // 1. Cria a entidade principal do projeto
@@ -98,17 +138,18 @@ export class ProjectsRepository {
           lifetimeStart: data.lifetimeStart,
           lifetimeEnd: data.lifetimeEnd,
           justification: data.justification ? data.justification.trim() : null,
-          proponentId: data.proponentId,
+          organizationId: data.organizationId,
+          ...(data.status !== undefined ? { status: data.status } : {}),
         },
       });
 
-      // 2. Registra os proponentes secundários/associados, se houver
-      if (data.proponents && data.proponents.length > 0) {
-        for (const prop of data.proponents) {
-          await tx.projectProponent.create({
+      // 2. Registra os organizações secundárias/associados, se houver
+      if (data.organizations && data.organizations.length > 0) {
+        for (const prop of data.organizations) {
+          await tx.projectOrganization.create({
             data: {
               projectId: project.id,
-              proponentId: prop.proponentId,
+              organizationId: prop.organizationId,
               role: prop.role ? prop.role.trim() : null,
             },
           });
@@ -143,10 +184,10 @@ export class ProjectsRepository {
    * Campos pesquisáveis na busca textual (search):
    * - `name`: Nome do projeto (busca parcial case-insensitive);
    * - `justification`: Justificativa do projeto (busca parcial case-insensitive);
-   * - `proponent.name`: Nome da organização proponente principal (busca parcial case-insensitive).
+   * - `organization.name`: Nome da organizaçãa organização principal (busca parcial case-insensitive).
    *
    * Justificativa: Permite ao usuário localizar projetos tanto pelo título da iniciativa,
-   * quanto por palavras-chave do objetivo/justificativa ou pela entidade proponente.
+   * quanto por palavras-chave do objetivo/justificativa ou pela entidade organização.
    */
   private buildWhereClause(search?: string): Prisma.ProjectWhereInput {
     const trimmedSearch = search?.trim();
@@ -161,7 +202,7 @@ export class ProjectsRepository {
                 justification: { contains: trimmedSearch, mode: 'insensitive' },
               },
               {
-                proponent: {
+                organization: {
                   name: { contains: trimmedSearch, mode: 'insensitive' },
                 },
               },
@@ -209,7 +250,7 @@ export class ProjectsRepository {
 
   /**
    * Busca um projeto ativo pelo seu identificador UUID, incluindo todos os relacionamentos
-   * com o proponente principal, proponentes associados e ODS.
+   * com a organização principal, organizações associadas e ODS.
    *
    * @param id Identificador do projeto.
    * @returns Projeto completo com relacionamentos ou null se não encontrado/excluído logicamente.
@@ -239,9 +280,10 @@ export class ProjectsRepository {
       lifetimeStart?: Date;
       lifetimeEnd?: Date;
       justification?: string;
-      proponentId?: string;
-      proponents?: { proponentId: string; role?: string }[];
+      organizationId?: string;
+      organizations?: { organizationId: string; role?: string }[];
       sdgUuids?: string[];
+      status?: ProjectStatus;
     },
   ): Promise<ProjectWithDetails> {
     return this.prisma.$transaction(async (tx) => {
@@ -262,9 +304,12 @@ export class ProjectsRepository {
           ? data.justification.trim()
           : null;
       }
-      if (data.proponentId !== undefined) {
-        projectUpdateData.proponent = {
-          connect: { id: data.proponentId },
+      if (data.status !== undefined) {
+        projectUpdateData.status = data.status;
+      }
+      if (data.organizationId !== undefined) {
+        projectUpdateData.organization = {
+          connect: { id: data.organizationId },
         };
       }
 
@@ -273,18 +318,24 @@ export class ProjectsRepository {
         data: projectUpdateData,
       });
 
-      // 2. Se a lista de proponentes associados foi informada, sincroniza os vínculos
-      if (data.proponents !== undefined) {
-        const existingProjectProponents = await tx.projectProponent.findMany({
-          where: { projectId: id },
-        });
+      // 2. Se a lista de organizações associadas foi informada, sincroniza os vínculos
+      if (data.organizations !== undefined) {
+        const existingProjectOrganizations =
+          await tx.projectOrganization.findMany({
+            where: { projectId: id },
+          });
 
-        const newProponentIds = new Set(data.proponents.map((p) => p.proponentId));
+        const newOrganizationIds = new Set(
+          data.organizations.map((p) => p.organizationId),
+        );
 
-        // Marca soft delete para os proponentes que não estão na nova lista
-        for (const existing of existingProjectProponents) {
-          if (!newProponentIds.has(existing.proponentId) && existing.deletedAt === null) {
-            await tx.projectProponent.update({
+        // Marca soft delete para os organizações que não estão na nova lista
+        for (const existing of existingProjectOrganizations) {
+          if (
+            !newOrganizationIds.has(existing.organizationId) &&
+            existing.deletedAt === null
+          ) {
+            await tx.projectOrganization.update({
               where: { id: existing.id },
               data: { deletedAt: new Date() },
             });
@@ -292,14 +343,14 @@ export class ProjectsRepository {
         }
 
         // Insere novos ou atualiza/reativa os existentes
-        for (const prop of data.proponents) {
-          const existing = existingProjectProponents.find(
-            (e) => e.proponentId === prop.proponentId,
+        for (const prop of data.organizations) {
+          const existing = existingProjectOrganizations.find(
+            (e) => e.organizationId === prop.organizationId,
           );
           const role = prop.role ? prop.role.trim() : null;
 
           if (existing) {
-            await tx.projectProponent.update({
+            await tx.projectOrganization.update({
               where: { id: existing.id },
               data: {
                 role,
@@ -307,10 +358,10 @@ export class ProjectsRepository {
               },
             });
           } else {
-            await tx.projectProponent.create({
+            await tx.projectOrganization.create({
               data: {
                 projectId: id,
-                proponentId: prop.proponentId,
+                organizationId: prop.organizationId,
                 role,
               },
             });
@@ -383,7 +434,7 @@ export class ProjectsRepository {
         data: { deletedAt: now },
       });
 
-      await tx.projectProponent.updateMany({
+      await tx.projectOrganization.updateMany({
         where: { projectId: id, deletedAt: null },
         data: { deletedAt: now },
       });

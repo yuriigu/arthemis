@@ -1,4 +1,3 @@
-# syntax=docker/dockerfile:1
 # ---------------------------------------------------------------------------
 # Arthemis Frontend (apps/web) — Next.js 16 + Tailwind v4
 #

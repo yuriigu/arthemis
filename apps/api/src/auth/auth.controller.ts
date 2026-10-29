@@ -9,6 +9,12 @@ import {
   Res,
   UseGuards,
 } from '@nestjs/common';
+import {
+  ApiCookieAuth,
+  ApiOkResponse,
+  ApiTags,
+  ApiUnauthorizedResponse,
+} from '@nestjs/swagger';
 import type { Response } from 'express';
 import { Public } from '../common/decorators/public.decorator.js';
 import { AUTH_COOKIE_NAME, getAuthCookieOptions } from './auth.constants.js';
@@ -27,6 +33,7 @@ import type { PublicUser } from '../users/models/i-user.js';
  * devolver o perfil do usuário autenticado.
  */
 @Controller('auth')
+@ApiTags('auth')
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
@@ -41,6 +48,8 @@ export class AuthController {
   @Post('login')
   @Public()
   @HttpCode(HttpStatus.OK)
+  @ApiOkResponse({ description: 'Authentication succeeded.' })
+  @ApiUnauthorizedResponse({ description: 'Invalid credentials.' })
   async login(
     @Body() dto: LoginDto,
     @Res({ passthrough: true }) response: Response,
@@ -57,6 +66,7 @@ export class AuthController {
   @Post('logout')
   @Public()
   @HttpCode(HttpStatus.OK)
+  @ApiOkResponse({ description: 'Authentication cookie cleared.' })
   logout(@Res({ passthrough: true }) response: Response): { success: true } {
     response.clearCookie(AUTH_COOKIE_NAME, getAuthCookieOptions());
     return { success: true };
@@ -70,6 +80,9 @@ export class AuthController {
    */
   @Get('me')
   @UseGuards(JwtAuthGuard)
+  @ApiCookieAuth(AUTH_COOKIE_NAME)
+  @ApiOkResponse({ description: 'Authenticated user profile.' })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid credentials.' })
   async me(@Req() request: AuthenticatedRequest): Promise<PublicUser> {
     return this.authService.getProfile(request.user.id);
   }

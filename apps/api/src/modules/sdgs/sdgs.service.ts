@@ -1,4 +1,5 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { withRequestId } from '../../common/request-context.js';
 import type { PublicSdg } from './models/i-sdg.js';
 import { SdgsRepository } from './sdgs.repository.js';
 
@@ -27,7 +28,9 @@ export class SdgsService {
 
     if (sdgs.length < EXPECTED_SDGS_COUNT) {
       this.logger.warn(
-        `A base de dados contém apenas ${sdgs.length} de ${EXPECTED_SDGS_COUNT} ODS. Execute o seed para cadastrar todos os 17 objetivos.`,
+        withRequestId(
+          `A base de dados contém apenas ${sdgs.length} de ${EXPECTED_SDGS_COUNT} ODS. Execute o seed para cadastrar todos os 17 objetivos.`,
+        ),
       );
     }
 
@@ -45,7 +48,7 @@ export class SdgsService {
     const sdg = await this.sdgsRepository.findById(id);
 
     if (!sdg) {
-      throw new NotFoundException(`ODS com id "${id}" não encontrado`);
+      throw new NotFoundException(`ODS com id "${id}" não encontrada`);
     }
 
     return sdg;
@@ -65,7 +68,9 @@ export class SdgsService {
 
     if (foundSdgs.length !== uniqueNumbers.length) {
       const foundNumbersSet = new Set(foundSdgs.map((s) => s.number));
-      const missingNumbers = uniqueNumbers.filter((n) => !foundNumbersSet.has(n));
+      const missingNumbers = uniqueNumbers.filter(
+        (n) => !foundNumbersSet.has(n),
+      );
       throw new NotFoundException(
         `ODS não encontrado(s) para o(s) número(s): ${missingNumbers.join(', ')}`,
       );

@@ -6,12 +6,13 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
 import { useRouter } from "next/navigation";
 
-import { api, ApiError } from "@/lib/api";
+import { api, ApiError, setUnauthorizedHandler } from "@/lib/api";
 import {
   LOGIN_PATH,
   normalizeAuthUser,
@@ -35,6 +36,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const router = useRouter();
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const logoutInProgress = useRef(false);
 
   useEffect(() => {
     let isMounted = true;
@@ -82,16 +84,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   const logout = useCallback(async (): Promise<void> => {
+    if (logoutInProgress.current) return;
+    logoutInProgress.current = true;
+
     try {
       await api.post<{ success: true }>("/auth/logout", {
         credentials: "include",
       });
     } finally {
       setUser(null);
+      logoutInProgress.current = false;
       router.replace(LOGIN_PATH);
       router.refresh();
     }
   }, [router]);
+
+  useEffect(() => {
+    setUnauthorizedHandler(() => {
+      if (user !== null) {
+        void logout().catch((error: unknown) => {
+          console.error("Falha ao encerrar a sessão após resposta 401.", error);
+        });
+      }
+    });
+
+    return () => setUnauthorizedHandler(null);
+  }, [logout, user]);
 
   const value = useMemo<AuthContextValue>(
     () => ({

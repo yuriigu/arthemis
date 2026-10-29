@@ -8,6 +8,17 @@ import {
   ParseUUIDPipe,
   Post,
 } from '@nestjs/common';
+import {
+  ApiBadRequestResponse,
+  ApiCookieAuth,
+  ApiCreatedResponse,
+  ApiForbiddenResponse,
+  ApiNotFoundResponse,
+  ApiParam,
+  ApiTags,
+  ApiUnauthorizedResponse,
+} from '@nestjs/swagger';
+import { AUTH_COOKIE_NAME } from '../auth/auth.constants.js';
 import { Roles } from '../common/decorators/roles.decorator.js';
 import { Role } from '../common/enums/role.enum.js';
 import { CreateUserDto } from './dto/create-user.dto.js';
@@ -24,6 +35,9 @@ import { UsersService } from './users.service.js';
  * adicionalmente a administradores.
  */
 @Controller('users')
+@ApiTags('users')
+@ApiCookieAuth(AUTH_COOKIE_NAME)
+@ApiUnauthorizedResponse({ description: 'Missing or invalid credentials.' })
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
@@ -35,6 +49,8 @@ export class UsersController {
    */
   @Post()
   @HttpCode(HttpStatus.CREATED)
+  @ApiCreatedResponse({ description: 'User created.' })
+  @ApiBadRequestResponse({ description: 'Invalid request body.' })
   async create(@Body() dto: CreateUserDto): Promise<PublicUser> {
     return this.usersService.createUser(dto);
   }
@@ -42,6 +58,9 @@ export class UsersController {
   /** GET /users/:id — 400 para id que não é UUID, 404 quando não existe. */
   @Get(':id')
   @Roles(Role.ADMIN)
+  @ApiParam({ name: 'id', format: 'uuid' })
+  @ApiNotFoundResponse({ description: 'User not found.' })
+  @ApiForbiddenResponse({ description: 'Administrator role required.' })
   async findById(
     @Param('id', new ParseUUIDPipe()) id: string,
   ): Promise<PublicUser> {

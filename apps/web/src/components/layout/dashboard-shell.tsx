@@ -2,16 +2,12 @@
 
 import { useState, type ReactNode } from "react";
 
-import type { AuthUser } from "@/lib/auth/constants";
-
-import { Header } from "./header";
 import { Sidebar } from "./sidebar";
+import { ThemeToggle } from "@/components/ui/theme-toggle";
 
 export function DashboardShell({
-  user,
   children,
 }: {
-  user: AuthUser;
   children: ReactNode;
 }) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -26,8 +22,12 @@ export function DashboardShell({
 
       {/* Área principal de conteúdo */}
       <div className="flex flex-1 flex-col overflow-hidden">
-        <Header user={user} onMenuClick={() => setIsSidebarOpen(true)} />
-        <main className="flex-1 overflow-y-auto p-6 md:p-8">{children}</main>
+        <main className="flex-1 overflow-y-auto pt-6 md:p-8">{children}</main>
+
+        {/* Theme toggle flutuante no canto superior direito */}
+        <div className="fixed top-4 right-4 z-50">
+          <ThemeToggle />
+        </div>
       </div>
     </div>
   );

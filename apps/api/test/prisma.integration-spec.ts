@@ -16,9 +16,9 @@ import { PrismaService } from '../src/prisma/prisma.service.js';
  *
  * Cobre os critérios de aceitação da issue #26:
  *   1. migrations aplicam em banco limpo sem erro de FK/constraint;
- *   2. associação opcional `User -> Proponent` e leitura do `username`;
- *   3. uniques compostas (`project_sdg`, `project_proponents`), unique de
- *      `sdgs.number` e a FK `users.proponent_id -> proponents.id`;
+ *   2. associação opcional `User -> Organization` e leitura do `username`;
+ *   3. uniques compostas (`project_sdg`, `project_organizations`), unique de
+ *      `sdgs.number` e a FK `users.organization_id -> organizations.id`;
  *   4. idempotência do seed (17 ODS, sem duplicar ao rodar duas vezes).
  */
 
@@ -105,10 +105,10 @@ describe('Prisma schema (integração com Postgres real)', () => {
         // Todas as tabelas da migração existem no schema recém-criado...
         expect(tables.map((table) => table.table_name).sort()).toEqual([
           '_prisma_migrations',
-          'project_proponents',
+          'project_organizations',
           'project_sdg',
           'projects',
-          'proponents',
+          'organizations',
           'sdgs',
           'users',
         ]);
@@ -128,22 +128,22 @@ describe('Prisma schema (integração com Postgres real)', () => {
 
   describe('modelagem e constraints', () => {
     /**
-     * Cria proponente + projeto + ODS de teste (número 999, fora do intervalo
+     * Cria organização + projeto + ODS de teste (número 999, fora do intervalo
      * 1..17 do seed) e devolve os registros. O cleanup é de quem chama.
      */
     async function createFixture() {
       const suffix = uniqueSuffix();
 
-      const proponent = await prisma.proponent.create({
+      const organization = await prisma.organization.create({
         data: {
-          name: `Proponente ${suffix}`,
-          email: `proponente.${suffix}@arthemis.test`,
+          name: `Organização ${suffix}`,
+          email: `organização.${suffix}@arthemis.test`,
         },
       });
 
       const project = await prisma.project.create({
         data: {
-          proponentId: proponent.id,
+          organizationId: organization.id,
           name: `Projeto ${suffix}`,
           justification: 'Projeto de teste da modelagem.',
         },
@@ -157,34 +157,36 @@ describe('Prisma schema (integração com Postgres real)', () => {
         },
       });
 
-      return { proponent, project, sdg };
+      return { organization, project, sdg };
     }
 
     async function destroyFixture(ids: {
-      proponentId?: string;
+      organizationId?: string;
       projectId?: string;
       sdgId?: string;
     }): Promise<void> {
       if (ids.projectId) {
-        // Cascade remove project_proponents e project_sdg do projeto.
+        // Cascade remove project_organizations e project_sdg do projeto.
         await prisma.project.deleteMany({ where: { id: ids.projectId } });
       }
       if (ids.sdgId) {
         await prisma.sdg.deleteMany({ where: { id: ids.sdgId } });
       }
-      if (ids.proponentId) {
-        await prisma.proponent.deleteMany({ where: { id: ids.proponentId } });
+      if (ids.organizationId) {
+        await prisma.organization.deleteMany({
+          where: { id: ids.organizationId },
+        });
       }
     }
 
     it('expõe relacionamentos bidirecionais e o soft delete (`deletedAt`)', async () => {
-      const { proponent, project, sdg } = await createFixture();
+      const { organization, project, sdg } = await createFixture();
 
       try {
-        await prisma.projectProponent.create({
+        await prisma.projectOrganization.create({
           data: {
             projectId: project.id,
-            proponentId: proponent.id,
+            organizationId: organization.id,
             role: 'Coordenador',
           },
         });
@@ -192,53 +194,55 @@ describe('Prisma schema (integração com Postgres real)', () => {
           data: { projectId: project.id, sdgId: sdg.id },
         });
 
-        // Projeto -> proponente / ODS / participantes.
+        // Projeto -> organização / ODS / participantes.
         const loaded = await prisma.project.findUniqueOrThrow({
           where: { id: project.id },
           include: {
-            proponent: true,
-            projectProponents: { include: { proponent: true } },
+            organization: true,
+            projectOrganizations: { include: { organization: true } },
             projectSdgs: { include: { sdg: true } },
           },
         });
 
-        expect(loaded.proponent.id).toBe(proponent.id);
-        expect(loaded.projectProponents).toHaveLength(1);
-        expect(loaded.projectProponents[0].proponent.id).toBe(proponent.id);
+        expect(loaded.organization.id).toBe(organization.id);
+        expect(loaded.projectOrganizations).toHaveLength(1);
+        expect(loaded.projectOrganizations[0].organization.id).toBe(
+          organization.id,
+        );
         expect(loaded.projectSdgs).toHaveLength(1);
         expect(loaded.projectSdgs[0].sdg.number).toBe(999);
 
         // Soft delete presente (nulo por padrão) nas entidades de domínio.
         expect(loaded.deletedAt).toBeNull();
-        expect(loaded.proponent.deletedAt).toBeNull();
+        expect(loaded.organization.deletedAt).toBeNull();
         expect(loaded.projectSdgs[0].deletedAt).toBeNull();
         expect(sdg.deletedAt).toBeNull();
 
-        // Lado reverso (bidirecional): proponente -> projetos / vínculos.
-        const reverse = await prisma.proponent.findUniqueOrThrow({
-          where: { id: proponent.id },
-          include: { projects: true, projectProponents: true },
+        // Lado reverso (bidirecional): organização -> projetos / vínculos.
+        const reverse = await prisma.organization.findUniqueOrThrow({
+          where: { id: organization.id },
+          include: { projects: true, projectOrganizations: true },
         });
 
         expect(reverse.projects.map((item) => item.id)).toContain(project.id);
         expect(
-          reverse.projectProponents.map((item) => item.projectId),
+          reverse.projectOrganizations.map((item) => item.projectId),
         ).toContain(project.id);
       } finally {
         await destroyFixture({
           projectId: project.id,
           sdgId: sdg.id,
-          proponentId: proponent.id,
+          organizationId: organization.id,
         });
       }
     });
 
     it('aplica as uniques compostas e o unique de `sdgs.number`', async () => {
-      const { proponent, project, sdg } = await createFixture();
+      const { organization, project, sdg } = await createFixture();
 
       try {
-        await prisma.projectProponent.create({
-          data: { projectId: project.id, proponentId: proponent.id },
+        await prisma.projectOrganization.create({
+          data: { projectId: project.id, organizationId: organization.id },
         });
         await prisma.projectSdg.create({
           data: { projectId: project.id, sdgId: sdg.id },
@@ -251,10 +255,10 @@ describe('Prisma schema (integração com Postgres real)', () => {
           }),
         ).rejects.toMatchObject({ code: 'P2002' });
 
-        // project_proponents(project_id, proponent_id) — único.
+        // project_organizations(project_id, organization_id) — único.
         await expect(
-          prisma.projectProponent.create({
-            data: { projectId: project.id, proponentId: proponent.id },
+          prisma.projectOrganization.create({
+            data: { projectId: project.id, organizationId: organization.id },
           }),
         ).rejects.toMatchObject({ code: 'P2002' });
 
@@ -272,13 +276,13 @@ describe('Prisma schema (integração com Postgres real)', () => {
         await destroyFixture({
           projectId: project.id,
           sdgId: sdg.id,
-          proponentId: proponent.id,
+          organizationId: organization.id,
         });
       }
     });
 
-    it('aplica a FK `users.proponent_id -> proponents.id`', async () => {
-      // Um `proponentId` inexistente viola a FK no banco (P2003): prova que a
+    it('aplica a FK `users.organization_id -> organizations.id`', async () => {
+      // Um `organizationId` inexistente viola a FK no banco (P2003): prova que a
       // constraint existe e não é apenas uma relação declarada no Prisma.
       await expect(
         prisma.user.create({
@@ -287,19 +291,19 @@ describe('Prisma schema (integração com Postgres real)', () => {
             passwordHash:
               '$2b$10$hashfakehashfakehashfakehashfakehashfakehashfake',
             role: 'visitor',
-            proponentId: randomUUID(),
+            organizationId: randomUUID(),
           },
         }),
       ).rejects.toMatchObject({ code: 'P2003' });
     });
   });
 
-  describe('associação opcional User <-> Proponent', () => {
-    it('associa o usuário a um proponente e lê o `username`', async () => {
+  describe('associação opcional User <-> Organization', () => {
+    it('associa o usuário a uma organização e lê o `username`', async () => {
       const suffix = uniqueSuffix();
-      const proponent = await prisma.proponent.create({
+      const organization = await prisma.organization.create({
         data: {
-          name: `Proponente ${suffix}`,
+          name: `Organização ${suffix}`,
           email: `prop.${suffix}@arthemis.test`,
         },
       });
@@ -312,44 +316,46 @@ describe('Prisma schema (integração com Postgres real)', () => {
             '$2b$10$hashfakehashfakehashfakehashfakehashfakehashfake',
           role: 'manager',
           username,
-          proponentId: proponent.id,
+          organizationId: organization.id,
         },
-        include: { proponent: true },
+        include: { organization: true },
       });
 
       try {
         expect(user.username).toBe(username);
-        expect(user.proponentId).toBe(proponent.id);
-        expect(user.proponent?.id).toBe(proponent.id);
-        expect(user.proponent?.name).toBe(proponent.name);
+        expect(user.organizationId).toBe(organization.id);
+        expect(user.organization?.id).toBe(organization.id);
+        expect(user.organization?.name).toBe(organization.name);
 
-        // O lado do proponente também enxerga o usuário (bidirecional).
-        const withUsers = await prisma.proponent.findUniqueOrThrow({
-          where: { id: proponent.id },
+        // O lado da organização também enxerga o usuário (bidirecional).
+        const withUsers = await prisma.organization.findUniqueOrThrow({
+          where: { id: organization.id },
           include: { users: true },
         });
         expect(withUsers.users.map((item) => item.id)).toContain(user.id);
       } finally {
         await prisma.user.deleteMany({ where: { id: user.id } });
-        await prisma.proponent.deleteMany({ where: { id: proponent.id } });
+        await prisma.organization.deleteMany({
+          where: { id: organization.id },
+        });
       }
     });
 
-    it('permite usuário sem proponente (relação opcional)', async () => {
+    it('permite usuário sem organização (relação opcional)', async () => {
       const suffix = uniqueSuffix();
       const user = await prisma.user.create({
         data: {
-          email: `sem-proponente.${suffix}@arthemis.test`,
+          email: `sem-organização.${suffix}@arthemis.test`,
           passwordHash:
             '$2b$10$hashfakehashfakehashfakehashfakehashfakehashfake',
           role: 'visitor',
         },
-        include: { proponent: true },
+        include: { organization: true },
       });
 
       try {
-        expect(user.proponentId).toBeNull();
-        expect(user.proponent).toBeNull();
+        expect(user.organizationId).toBeNull();
+        expect(user.organization).toBeNull();
         expect(user.username).toBeNull();
       } finally {
         await prisma.user.deleteMany({ where: { id: user.id } });

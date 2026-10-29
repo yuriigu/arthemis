@@ -7,8 +7,8 @@ import { AuthModule } from '../src/auth/auth.module.js';
 import { configureApp } from '../src/config/app.setup.js';
 import { ProjectsModule } from '../src/modules/projects/projects.module.js';
 import { ProjectsRepository } from '../src/modules/projects/projects.repository.js';
-import { ProponentsModule } from '../src/modules/proponents/proponents.module.js';
-import { ProponentsRepository } from '../src/modules/proponents/proponents.repository.js';
+import { OrganizationsModule } from '../src/modules/organizations/organizations.module.js';
+import { OrganizationsRepository } from '../src/modules/organizations/organizations.repository.js';
 import { SdgsModule } from '../src/modules/sdgs/sdgs.module.js';
 import { SdgsRepository } from '../src/modules/sdgs/sdgs.repository.js';
 import { PrismaService } from '../src/prisma/prisma.service.js';
@@ -21,24 +21,24 @@ import { PrismaService } from '../src/prisma/prisma.service.js';
  * envelope padronizado de paginação e integridade de formato de data civil.
  */
 const TEST_SECRET = 'e2e-jwt-secret-0123456789-abcdefghijklmnopqrstuv';
-const MAIN_PROPONENT_ID = '3f2504e0-4f89-41d3-9a0c-0305e82c3301';
-const SECONDARY_PROPONENT_ID = '7c9e6679-7425-40de-944b-e07fc1f90ae7';
+const MAIN_ORGANIZATION_ID = '3f2504e0-4f89-41d3-9a0c-0305e82c3301';
+const SECONDARY_ORGANIZATION_ID = '7c9e6679-7425-40de-944b-e07fc1f90ae7';
 const PROJECT_ID = 'a1b2c3d4-e5f6-4a1b-8c2d-3e4f5a6b7c8d';
 
 process.env.JWT_SECRET = TEST_SECRET;
 process.env.JWT_EXPIRES_IN = '24h';
 
 describe('Projects (e2e)', () => {
-  const sampleMainProponent = {
-    id: MAIN_PROPONENT_ID,
+  const sampleMainOrganization = {
+    id: MAIN_ORGANIZATION_ID,
     name: 'Instituto Arthemis',
     email: 'contato@arthemis.test',
     createdAt: new Date('2026-01-01T00:00:00Z'),
     updatedAt: new Date('2026-01-01T00:00:00Z'),
   };
 
-  const sampleSecondaryProponent = {
-    id: SECONDARY_PROPONENT_ID,
+  const sampleSecondaryOrganization = {
+    id: SECONDARY_ORGANIZATION_ID,
     name: 'Parceiro Sustentável',
     email: 'parceiro@sustentavel.test',
     createdAt: new Date('2026-01-01T00:00:00Z'),
@@ -60,21 +60,21 @@ describe('Projects (e2e)', () => {
     lifetimeStart: new Date(Date.UTC(2026, 0, 15, 0, 0, 0, 0)),
     lifetimeEnd: new Date(Date.UTC(2026, 11, 31, 0, 0, 0, 0)),
     justification: 'Recuperação de mata nativa',
-    proponentId: MAIN_PROPONENT_ID,
+    organizationId: MAIN_ORGANIZATION_ID,
     createdAt: new Date('2026-01-01T00:00:00Z'),
     updatedAt: new Date('2026-01-01T00:00:00Z'),
     deletedAt: null,
-    proponent: sampleMainProponent,
-    projectProponents: [
+    organization: sampleMainOrganization,
+    projectOrganizations: [
       {
         id: 'pp-uuid-1',
         projectId: PROJECT_ID,
-        proponentId: SECONDARY_PROPONENT_ID,
+        organizationId: SECONDARY_ORGANIZATION_ID,
         role: 'Co-executor',
         createdAt: new Date('2026-01-01T00:00:00Z'),
         updatedAt: new Date('2026-01-01T00:00:00Z'),
         deletedAt: null,
-        proponent: sampleSecondaryProponent,
+        organization: sampleSecondaryOrganization,
       },
     ],
     projectSdgs: [
@@ -88,6 +88,8 @@ describe('Projects (e2e)', () => {
         sdg: sampleSdg1,
       },
     ],
+    activities: [],
+    locations: [],
   };
 
   const projectsRepoMock = {
@@ -99,7 +101,7 @@ describe('Projects (e2e)', () => {
     softDelete: vi.fn(),
   };
 
-  const proponentsRepoMock = {
+  const organizationsRepoMock = {
     findById: vi.fn(),
   };
 
@@ -121,7 +123,7 @@ describe('Projects (e2e)', () => {
       imports: [
         ConfigModule.forRoot({ isGlobal: true, ignoreEnvFile: true }),
         AuthModule,
-        ProponentsModule,
+        OrganizationsModule,
         SdgsModule,
         ProjectsModule,
       ],
@@ -130,8 +132,8 @@ describe('Projects (e2e)', () => {
       .useValue({ user: { findUnique: vi.fn() } })
       .overrideProvider(ProjectsRepository)
       .useValue(projectsRepoMock)
-      .overrideProvider(ProponentsRepository)
-      .useValue(proponentsRepoMock)
+      .overrideProvider(OrganizationsRepository)
+      .useValue(organizationsRepoMock)
       .overrideProvider(SdgsRepository)
       .useValue(sdgsRepoMock)
       .compile();
@@ -141,7 +143,7 @@ describe('Projects (e2e)', () => {
     await app.init();
 
     token = await new JwtService({ secret: TEST_SECRET }).signAsync({
-      sub: MAIN_PROPONENT_ID,
+      sub: MAIN_ORGANIZATION_ID,
       email: 'admin@arthemis.test',
       role: 'admin',
     });
@@ -154,9 +156,11 @@ describe('Projects (e2e)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
 
-    proponentsRepoMock.findById.mockImplementation((id: string) => {
-      if (id === MAIN_PROPONENT_ID) return Promise.resolve(sampleMainProponent);
-      if (id === SECONDARY_PROPONENT_ID) return Promise.resolve(sampleSecondaryProponent);
+    organizationsRepoMock.findById.mockImplementation((id: string) => {
+      if (id === MAIN_ORGANIZATION_ID)
+        return Promise.resolve(sampleMainOrganization);
+      if (id === SECONDARY_ORGANIZATION_ID)
+        return Promise.resolve(sampleSecondaryOrganization);
       return Promise.resolve(null);
     });
 
@@ -173,9 +177,16 @@ describe('Projects (e2e)', () => {
     it('todas as rotas respondem 401 sem token Bearer', async () => {
       await request(app.getHttpServer()).get('/projects').expect(401);
       await request(app.getHttpServer()).post('/projects').send({}).expect(401);
-      await request(app.getHttpServer()).get(`/projects/${PROJECT_ID}`).expect(401);
-      await request(app.getHttpServer()).patch(`/projects/${PROJECT_ID}`).send({}).expect(401);
-      await request(app.getHttpServer()).delete(`/projects/${PROJECT_ID}`).expect(401);
+      await request(app.getHttpServer())
+        .get(`/projects/${PROJECT_ID}`)
+        .expect(401);
+      await request(app.getHttpServer())
+        .patch(`/projects/${PROJECT_ID}`)
+        .send({})
+        .expect(401);
+      await request(app.getHttpServer())
+        .delete(`/projects/${PROJECT_ID}`)
+        .expect(401);
     });
   });
 
@@ -185,12 +196,14 @@ describe('Projects (e2e)', () => {
       lifetimeStart: '2026-01-15',
       lifetimeEnd: '2026-12-31',
       justification: 'Recuperação florestal',
-      proponentId: MAIN_PROPONENT_ID,
-      proponents: [{ proponentId: SECONDARY_PROPONENT_ID, role: 'Co-executor' }],
+      organizationId: MAIN_ORGANIZATION_ID,
+      organizations: [
+        { organizationId: SECONDARY_ORGANIZATION_ID, role: 'Co-executor' },
+      ],
       sdgIds: [1],
     };
 
-    it('responde 201 Created para criação válida com proponente principal, secundários e ODS', async () => {
+    it('responde 201 Created para criação válida com organização principal, secundários e ODS', async () => {
       const response = await request(app.getHttpServer())
         .post('/projects')
         .set(...auth())
@@ -200,8 +213,8 @@ describe('Projects (e2e)', () => {
       expect(response.body).toHaveProperty('id', PROJECT_ID);
       expect(response.body.lifetimeStart).toBe('2026-01-15');
       expect(response.body.lifetimeEnd).toBe('2026-12-31');
-      expect(response.body.proponent.id).toBe(MAIN_PROPONENT_ID);
-      expect(response.body.proponents).toHaveLength(1);
+      expect(response.body.organization.id).toBe(MAIN_ORGANIZATION_ID);
+      expect(response.body.organizations).toHaveLength(1);
       expect(response.body.sdgs).toHaveLength(1);
     });
 
@@ -241,10 +254,10 @@ describe('Projects (e2e)', () => {
         .expect(400);
     });
 
-    it('responde 404 quando o proponente principal não existir', async () => {
-      proponentsRepoMock.findById.mockImplementation((id: string) => {
-        if (id === MAIN_PROPONENT_ID) return Promise.resolve(null);
-        return Promise.resolve(sampleSecondaryProponent);
+    it('responde 404 quando a organização principal não existir', async () => {
+      organizationsRepoMock.findById.mockImplementation((id: string) => {
+        if (id === MAIN_ORGANIZATION_ID) return Promise.resolve(null);
+        return Promise.resolve(sampleSecondaryOrganization);
       });
 
       await request(app.getHttpServer())
@@ -254,9 +267,10 @@ describe('Projects (e2e)', () => {
         .expect(404);
     });
 
-    it('responde 404 quando o proponente secundário não existir', async () => {
-      proponentsRepoMock.findById.mockImplementation((id: string) => {
-        if (id === MAIN_PROPONENT_ID) return Promise.resolve(sampleMainProponent);
+    it('responde 404 quando a organização secundário não existir', async () => {
+      organizationsRepoMock.findById.mockImplementation((id: string) => {
+        if (id === MAIN_ORGANIZATION_ID)
+          return Promise.resolve(sampleMainOrganization);
         return Promise.resolve(null);
       });
 
@@ -277,15 +291,15 @@ describe('Projects (e2e)', () => {
         .expect(404);
     });
 
-    it('responde 409 quando houver duplicidade de vínculos nos proponentes secundários', async () => {
+    it('responde 409 quando houver duplicidade de vínculos nos organizações secundárias', async () => {
       await request(app.getHttpServer())
         .post('/projects')
         .set(...auth())
         .send({
           ...validPayload,
-          proponents: [
-            { proponentId: SECONDARY_PROPONENT_ID, role: 'Role A' },
-            { proponentId: SECONDARY_PROPONENT_ID, role: 'Role B' },
+          organizations: [
+            { organizationId: SECONDARY_ORGANIZATION_ID, role: 'Role A' },
+            { organizationId: SECONDARY_ORGANIZATION_ID, role: 'Role B' },
           ],
         })
         .expect(409);
@@ -309,7 +323,7 @@ describe('Projects (e2e)', () => {
       });
       expect(Array.isArray(response.body.data)).toBe(true);
       expect(response.body.data[0]).toHaveProperty('id');
-      expect(response.body.data[0]).toHaveProperty('proponent');
+      expect(response.body.data[0]).toHaveProperty('organization');
       expect(response.body.data[0]).toHaveProperty('sdgs');
     });
 
@@ -336,8 +350,8 @@ describe('Projects (e2e)', () => {
         .expect(200);
 
       expect(response.body.id).toBe(PROJECT_ID);
-      expect(response.body.proponent.id).toBe(MAIN_PROPONENT_ID);
-      expect(response.body.proponents).toHaveLength(1);
+      expect(response.body.organization.id).toBe(MAIN_ORGANIZATION_ID);
+      expect(response.body.organizations).toHaveLength(1);
       expect(response.body.sdgs).toHaveLength(1);
     });
 

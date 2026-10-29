@@ -3,7 +3,7 @@ import { Test } from '@nestjs/testing';
 import { randomUUID } from 'node:crypto';
 import { AppModule } from '../src/app.module.js';
 import { ProjectsService } from '../src/modules/projects/projects.service.js';
-import { ProponentsService } from '../src/modules/proponents/proponents.service.js';
+import { OrganizationsService } from '../src/modules/organizations/organizations.service.js';
 import { PrismaService } from '../src/prisma/prisma.service.js';
 
 /**
@@ -11,7 +11,7 @@ import { PrismaService } from '../src/prisma/prisma.service.js';
  *
  * Executado via `npm run test:integration` (requer `docker compose up -d` ou Postgres ativo).
  * Cobre operações transacionais no banco de dados real:
- * 1. Criação atômica de projeto e vínculos com proponente principal, secundários e ODS;
+ * 1. Criação atômica de projeto e vínculos com organização principal, secundários e ODS;
  * 2. Atomicidade e rollback completo em caso de falha de gravação;
  * 3. Paginação no banco e busca textual com case-insensitive ILIKE;
  * 4. Edição preservando relacionamentos não enviados;
@@ -20,7 +20,7 @@ import { PrismaService } from '../src/prisma/prisma.service.js';
 describe('ProjectsModule (integração com Postgres real)', () => {
   let app: INestApplication;
   let projectsService: ProjectsService;
-  let proponentsService: ProponentsService;
+  let organizationsService: OrganizationsService;
   let prisma: PrismaService;
 
   const buildEmail = (prefix = 'project.integration'): string =>
@@ -35,7 +35,7 @@ describe('ProjectsModule (integração com Postgres real)', () => {
     await app.init();
 
     projectsService = app.get(ProjectsService);
-    proponentsService = app.get(ProponentsService);
+    organizationsService = app.get(OrganizationsService);
     prisma = app.get(PrismaService);
   });
 
@@ -43,14 +43,14 @@ describe('ProjectsModule (integração com Postgres real)', () => {
     await app.close();
   });
 
-  it('cria projeto de forma transacional com proponente principal, secundário e ODS', async () => {
-    const mainProp = await proponentsService.create({
-      name: `Proponente Principal ${randomUUID()}`,
+  it('cria projeto de forma transacional com organização principal, secundário e ODS', async () => {
+    const mainProp = await organizationsService.create({
+      name: `Organização Principal ${randomUUID()}`,
       email: buildEmail('main'),
     });
 
-    const secProp = await proponentsService.create({
-      name: `Proponente Secundário ${randomUUID()}`,
+    const secProp = await organizationsService.create({
+      name: `Organização Secundário ${randomUUID()}`,
       email: buildEmail('sec'),
     });
 
@@ -61,8 +61,8 @@ describe('ProjectsModule (integração com Postgres real)', () => {
       lifetimeStart: '2026-03-01',
       lifetimeEnd: '2026-11-30',
       justification: 'Justificativa do projeto de integração',
-      proponentId: mainProp.id,
-      proponents: [{ proponentId: secProp.id, role: 'Co-executor' }],
+      organizationId: mainProp.id,
+      organizations: [{ organizationId: secProp.id, role: 'Co-executor' }],
       sdgIds: [1, 2],
     });
 
@@ -71,10 +71,10 @@ describe('ProjectsModule (integração com Postgres real)', () => {
       expect(created.name).toBe(projectName);
       expect(created.lifetimeStart).toBe('2026-03-01');
       expect(created.lifetimeEnd).toBe('2026-11-30');
-      expect(created.proponent.id).toBe(mainProp.id);
-      expect(created.proponents).toHaveLength(1);
-      expect(created.proponents[0].proponentId).toBe(secProp.id);
-      expect(created.proponents[0].role).toBe('Co-executor');
+      expect(created.organization.id).toBe(mainProp.id);
+      expect(created.organizations).toHaveLength(1);
+      expect(created.organizations[0].organizationId).toBe(secProp.id);
+      expect(created.organizations[0].role).toBe('Co-executor');
       expect(created.sdgs.length).toBeGreaterThanOrEqual(2);
 
       // Confirma que os registros existem fisicamente no PostgreSQL
@@ -83,7 +83,7 @@ describe('ProjectsModule (integração com Postgres real)', () => {
       });
       expect(projectInDb).not.toBeNull();
 
-      const secInDb = await prisma.projectProponent.findMany({
+      const secInDb = await prisma.projectOrganization.findMany({
         where: { projectId: created.id },
       });
       expect(secInDb).toHaveLength(1);
@@ -107,8 +107,10 @@ describe('ProjectsModule (integração com Postgres real)', () => {
       const updated = await projectsService.update(created.id, {
         justification: 'Nova justificativa preservando vínculos',
       });
-      expect(updated.justification).toBe('Nova justificativa preservando vínculos');
-      expect(updated.proponents).toHaveLength(1);
+      expect(updated.justification).toBe(
+        'Nova justificativa preservando vínculos',
+      );
+      expect(updated.organizations).toHaveLength(1);
       expect(updated.sdgs.length).toBeGreaterThanOrEqual(2);
 
       // Testa soft delete
@@ -123,23 +125,29 @@ describe('ProjectsModule (integração com Postgres real)', () => {
       const listAfterDelete = await projectsService.findAll({
         search: projectName,
       });
-      expect(listAfterDelete.data.find((p) => p.id === created.id)).toBeUndefined();
+      expect(
+        listAfterDelete.data.find((p) => p.id === created.id),
+      ).toBeUndefined();
     } finally {
       // Limpeza dos dados de teste
       await prisma.projectSdg.deleteMany({ where: { projectId: created.id } });
-      await prisma.projectProponent.deleteMany({ where: { projectId: created.id } });
+      await prisma.projectOrganization.deleteMany({
+        where: { projectId: created.id },
+      });
       await prisma.project.deleteMany({ where: { id: created.id } });
-      await prisma.proponent.deleteMany({ where: { id: { in: [mainProp.id, secProp.id] } } });
+      await prisma.organization.deleteMany({
+        where: { id: { in: [mainProp.id, secProp.id] } },
+      });
     }
   });
 
   it('garante rollback completo quando ocorrer falha durante a transação', async () => {
-    const mainProp = await proponentsService.create({
-      name: `Proponente Rollback ${randomUUID()}`,
+    const mainProp = await organizationsService.create({
+      name: `Organização Rollback ${randomUUID()}`,
       email: buildEmail('rollback'),
     });
 
-    const nonExistentProponentId = randomUUID();
+    const nonExistentOrganizationId = randomUUID();
 
     try {
       // Tenta criar com um secundário inexistente
@@ -148,8 +156,10 @@ describe('ProjectsModule (integração com Postgres real)', () => {
           name: 'Projeto que deve falhar',
           lifetimeStart: '2026-01-01',
           lifetimeEnd: '2026-12-31',
-          proponentId: mainProp.id,
-          proponents: [{ proponentId: nonExistentProponentId, role: 'Invalido' }],
+          organizationId: mainProp.id,
+          organizations: [
+            { organizationId: nonExistentOrganizationId, role: 'Invalido' },
+          ],
           sdgIds: [1],
         }),
       ).rejects.toThrow();
@@ -160,7 +170,7 @@ describe('ProjectsModule (integração com Postgres real)', () => {
       });
       expect(orphaned).toHaveLength(0);
     } finally {
-      await prisma.proponent.deleteMany({ where: { id: mainProp.id } });
+      await prisma.organization.deleteMany({ where: { id: mainProp.id } });
     }
   });
 });

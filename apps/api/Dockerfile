@@ -1,16 +1,15 @@
-# syntax=docker/dockerfile:1
 # Arthemis API NestJS + Prisma — imagem de desenvolvimento e execução standalone.
-FROM node:24-bookworm-slim AS base
+FROM node:24-alpine AS base
 WORKDIR /app
 ENV NODE_ENV=production \
     PORT=8081 \
     HOSTNAME=0.0.0.0 \
     NEXT_TELEMETRY_DISABLED=1
 
-# Instala pacotes do sistema necessários: openssl para o Prisma, ca-certificates e procps (ps para nest-cli watch)
-RUN apt-get update \
-    && apt-get install --no-install-recommends -y openssl ca-certificates procps \
-    && rm -rf /var/lib/apt/lists/*
+# Instala pacotes do sistema necessários: openssl para o Prisma, ca-certificates,
+# procps (ps para nest-cli watch) e libc6-compat (Prisma em Alpine/musl).
+# python3, make e g++ são necessários para compilar dependências nativas (ex.: bcrypt).
+RUN apk add --no-cache openssl ca-certificates procps libc6-compat python3 make g++
 
 # Estágio de instalação de dependências limpas a partir do package-lock.json
 FROM base AS deps

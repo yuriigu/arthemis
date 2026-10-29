@@ -18,6 +18,7 @@
 import 'dotenv/config';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { Logger } from '@nestjs/common';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '../src/generated/prisma/client.js';
 import { USER_ROLES } from '../src/users/models/i-user.js';
@@ -26,6 +27,7 @@ import { hashPassword } from '../src/users/utils/password.util.js';
 const DEFAULT_SEED_EMAIL = 'admin@arthemis.local';
 const DEFAULT_SEED_PASSWORD = 'arthemis-dev-123';
 const DEFAULT_SEED_ROLE = 'admin';
+const logger = new Logger('Seed');
 
 /**
  * Base das URLs dos ícones dos ODS.
@@ -132,7 +134,7 @@ async function main(): Promise<void> {
   try {
     // 1) ODS (idempotente por `number`).
     const sdgCount = await seedSdgs(prisma);
-    console.log(`[seed] sdgs ready: ${sdgCount} ODS (idempotente)`);
+    logger.log(JSON.stringify({ event: 'seed_sdgs_ready', count: sdgCount }));
 
     // 2) Usuário de desenvolvimento.
     const passwordHash = await hashPassword(password);
@@ -146,13 +148,15 @@ async function main(): Promise<void> {
       select: { id: true, email: true, role: true, createdAt: true },
     });
 
-    console.log('[seed] user ready:', {
-      id: user.id,
-      email: user.email,
-      role: user.role,
-      createdAt: user.createdAt.toISOString(),
-      password: '<hash bcrypt gravado — texto limpo não é exibido>',
-    });
+    logger.log(
+      JSON.stringify({
+        event: 'seed_user_ready',
+        id: user.id,
+        email: user.email,
+        role: user.role,
+        createdAt: user.createdAt.toISOString(),
+      }),
+    );
   } finally {
     await prisma.$disconnect();
   }

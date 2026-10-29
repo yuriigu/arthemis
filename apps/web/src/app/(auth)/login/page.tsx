@@ -16,6 +16,12 @@ export const metadata: Metadata = {
 export default function LoginPage() {
   return (
     <div className="relative flex min-h-dvh w-full items-center justify-center bg-[linear-gradient(135deg,var(--color-sage-green-50)_0%,var(--color-sage-green-100)_100%)] p-4 sm:p-5 dark:bg-[linear-gradient(135deg,var(--color-sage-green-950)_0%,var(--color-sage-green-900)_100%)]">
+      {/* Theme toggle flutuante no canto superior direito */}
+      <div className="fixed top-4 right-4 z-50">
+        <ThemeToggle />
+      </div>
+
+      
       <ThemeToggle />
 
       <div className="grid w-full max-w-[1000px] grid-cols-1 overflow-hidden rounded-[16px] border border-border bg-card shadow-[0_20px_60px_rgba(0,0,0,0.08)] dark:shadow-[0_20px_60px_rgba(0,0,0,0.4)] md:grid-cols-2">

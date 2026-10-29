@@ -4,6 +4,7 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
+import { withRequestId } from '../common/request-context.js';
 import type { CreateUserDto } from './dto/create-user.dto.js';
 import { DEFAULT_USER_ROLE } from './models/i-user.js';
 import type { PublicUser, UserRecord } from './models/i-user.js';
@@ -51,7 +52,7 @@ export class UsersService {
     }
 
     // Log apenas com o id: e-mail é dado pessoal e senha nunca é logada.
-    this.logger.log(`User created: ${user.id}`);
+    this.logger.log(withRequestId(`User created: ${user.id}`));
 
     return toPublicUser(user);
   }

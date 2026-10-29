@@ -1,19 +1,22 @@
-import type { PublicProponent } from '../../proponents/models/i-proponent.js';
+import type { PublicOrganization } from '../../organizations/models/i-organization.js';
 import type { PublicSdg } from '../../sdgs/models/i-sdg.js';
+import type { PublicActivity } from '../../activities/models/i-activity.js';
+import type { PublicLocation } from '../../locations/models/i-location.js';
+import type { ProjectStatus } from '../../../generated/prisma/client.js';
 
 /**
  * Contratos e interfaces para o módulo de projetos.
  *
- * Mapeamento correspondente aos models `Project`, `ProjectProponent` e `ProjectSdg`
- * do schema Prisma (tabelas `projects`, `project_proponents` e `project_sdg`).
+ * Mapeamento correspondente aos models `Project`, `ProjectOrganization` e `ProjectSdg`
+ * do schema Prisma (tabelas `projects`, `project_organizations` e `project_sdg`).
  */
 
 /**
- * Proponente associado (secundário) com seu respectivo papel e dados da organização.
+ * Organização associada (secundário) com seu respectivo papel e dados da organização.
  */
-export interface AssociatedProponent {
+export interface AssociatedOrganization {
   id: string;
-  proponentId: string;
+  organizationId: string;
   role: string | null;
   name: string;
   email: string;
@@ -25,17 +28,21 @@ export interface AssociatedProponent {
 export interface PublicProjectDetail {
   id: string;
   name: string;
+  status: ProjectStatus;
   lifetimeStart: string;
   lifetimeEnd: string;
   justification: string | null;
   createdAt: Date;
   updatedAt: Date;
-  /** Proponente principal do projeto. */
-  proponent: PublicProponent;
-  /** Lista de proponentes secundários/associados com seus respectivos papéis. */
-  proponents: AssociatedProponent[];
+  /** Organização principal do projeto. */
+  organization: PublicOrganization;
+  /** Lista de organizações secundárias/associados com seus respectivos papéis. */
+  organizations: AssociatedOrganization[];
   /** Lista de Objetivos de Desenvolvimento Sustentável completos associados ao projeto. */
   sdgs: PublicSdg[];
+  /** Atividades e localizações ativas do projeto. */
+  activities: PublicActivity[];
+  locations: PublicLocation[];
 }
 
 /**
@@ -44,13 +51,14 @@ export interface PublicProjectDetail {
 export interface PublicProjectSummary {
   id: string;
   name: string;
+  status: ProjectStatus;
   lifetimeStart: string | null;
   lifetimeEnd: string | null;
   justification: string | null;
   createdAt: Date;
   updatedAt: Date;
-  /** Proponente principal do projeto. */
-  proponent: PublicProponent;
+  /** Organização principal do projeto. */
+  organization: PublicOrganization;
   /** ODS vinculados ao projeto. */
   sdgs: PublicSdg[];
 }

@@ -1,70 +1,77 @@
+import { api } from "@/lib/api";
+import { listSdgs as fetchSdgs } from "@/lib/sdgs/api";
+
 import type {
   CreateProjectInput,
   PageMeta,
-  Proponent,
   Project,
   ProjectPage,
   Sdg,
 } from "./types";
 
-const SDG_NAMES = [
-  "Erradicação da pobreza",
-  "Fome zero",
-  "Saúde e bem-estar",
-  "Educação de qualidade",
-  "Igualdade de gênero",
-  "Água potável e saneamento",
-  "Energia limpa",
-  "Trabalho decente e crescimento",
-  "Indústria, inovação e infraestrutura",
-  "Redução das desigualdades",
-  "Cidades e comunidades sustentáveis",
-  "Consumo e produção responsáveis",
-  "Ação contra a mudança global do clima",
-  "Vida na água",
-  "Vida terrestre",
-  "Paz, justiça e instituições eficazes",
-  "Parcerias e meios de implementação",
-];
+type ApiOrganization = {
+  id: string;
+  name: string;
+  email: string;
+};
 
-function iconUrl(number: number): string {
-  return `https://sdgs.un.org/sites/default/files/goals/E_SDG_Icons-${String(number).padStart(2, "0")}.jpg`;
-}
+type ApiProject = {
+  id: string;
+  name: string;
+  justification: string | null;
+  lifetimeStart: string | null;
+  lifetimeEnd: string | null;
+  organization: ApiOrganization;
+  organizations?: {
+    organizationId: string;
+    name: string;
+    email: string;
+    role: string | null;
+  }[];
+  sdgs: Sdg[];
+};
 
-const sdgs: Sdg[] = SDG_NAMES.map((name, index) => ({
-  id: index + 1,
-  number: index + 1,
-  name,
-  iconUrl: iconUrl(index + 1),
-}));
+type ApiProjectPage = {
+  data: ApiProject[];
+  meta: PageMeta;
+};
 
-const proponents: Proponent[] = [
-  { id: "p1", name: "Instituto Verde", email: "contato@verde.test" },
-  { id: "p2", name: "Cooperativa Rio", email: "contato@rio.test" },
-  { id: "p3", name: "Associação Mata", email: "contato@mata.test" },
-];
-
-const projects: Project[] = [
-  {
-    id: "prj-1",
-    name: "Restauração da mata ciliar",
-    justification: "Recuperar a faixa ciliar do rio principal do município.",
-    lifetimeStart: "2026-01-01",
-    lifetimeEnd: "2027-12-31",
-    proponentId: "p1",
-    proponents: [
-      { proponentId: "p1", name: "Instituto Verde", role: "Principal", isPrimary: true },
+function toProject(project: ApiProject): Project {
+  return {
+    id: project.id,
+    name: project.name,
+    justification: project.justification ?? "",
+    lifetimeStart: project.lifetimeStart ?? "",
+    lifetimeEnd: project.lifetimeEnd ?? "",
+    organizationId: project.organization.id,
+    organizations: [
+      {
+        organizationId: project.organization.id,
+        name: project.organization.name,
+        role: "Principal",
+        isPrimary: true,
+      },
+      ...(project.organizations ?? []).map((organization) => ({
+        organizationId: organization.organizationId,
+        name: organization.name,
+        role: organization.role ?? "",
+        isPrimary: false,
+      })),
     ],
-    sdgs: [sdgs[14], sdgs[5]],
-  },
-];
+    sdgs: project.sdgs,
+  };
+}
 
 export async function listSdgs(): Promise<Sdg[]> {
-  return sdgs;
+  return fetchSdgs();
 }
 
-export async function listProponents(): Promise<Proponent[]> {
-  return proponents;
+export async function listOrganizations(): Promise<
+  { id: string; name: string; email: string }[]
+> {
+  return api.get<{ id: string; name: string; email: string }[]>(
+    "/organizations",
+  );
 }
 
 export async function listProjects(query: {
@@ -72,59 +79,25 @@ export async function listProjects(query: {
   page?: number;
   limit?: number;
 }): Promise<ProjectPage> {
-  const search = query.search?.trim().toLowerCase() ?? "";
-  const page = query.page && query.page > 0 ? query.page : 1;
-  const limit = query.limit && query.limit > 0 ? query.limit : 6;
+  const params = new URLSearchParams({
+    page: String(query.page ?? 1),
+    limit: String(query.limit ?? 6),
+  });
+  if (query.search?.trim()) params.set("search", query.search.trim());
 
-  const filtered = projects.filter((project) =>
-    project.name.toLowerCase().includes(search),
+  const result = await api.get<ApiProjectPage>(
+    `/projects?${params.toString()}`,
   );
-  const total = filtered.length;
-  const totalPages = Math.max(1, Math.ceil(total / limit));
-  const safePage = Math.min(page, totalPages);
-  const start = (safePage - 1) * limit;
-
-  const meta: PageMeta = { total, page: safePage, limit, totalPages };
-  return { data: filtered.slice(start, start + limit), meta };
+  return { data: result.data.map(toProject), meta: result.meta };
 }
 
-export async function createProject(input: CreateProjectInput): Promise<Project> {
-  const primary = proponents.find((item) => item.id === input.proponentId);
-  const selectedSdgs = sdgs.filter((item) => input.sdgIds.includes(item.id));
-
-  const project: Project = {
-    id: crypto.randomUUID(),
-    name: input.name,
-    justification: input.justification,
-    lifetimeStart: input.lifetimeStart,
-    lifetimeEnd: input.lifetimeEnd,
-    proponentId: input.proponentId,
-    sdgs: selectedSdgs,
-    proponents: [
-      {
-        proponentId: input.proponentId,
-        name: primary?.name ?? "Proponente",
-        role: "Principal",
-        isPrimary: true,
-      },
-      ...input.proponents.map((item) => ({
-        proponentId: item.proponentId,
-        name: proponents.find((proponent) => proponent.id === item.proponentId)?.name ?? "Proponente",
-        role: item.role,
-        isPrimary: false,
-      })),
-    ],
-  };
-
-  projects.unshift(project);
-  return project;
+export async function createProject(
+  input: CreateProjectInput,
+): Promise<Project> {
+  const project = await api.post<ApiProject>("/projects", { body: input });
+  return toProject(project);
 }
 
 export async function deleteProject(id: string): Promise<void> {
-  const index = projects.findIndex((project) => project.id === id);
-  if (index >= 0) projects.splice(index, 1);
-}
-
-export async function getProject(id: string): Promise<Project | null> {
-  return projects.find((project) => project.id === id) ?? null;
+  await api.delete(`/projects/${encodeURIComponent(id)}`);
 }

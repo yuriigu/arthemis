@@ -4,8 +4,10 @@ import {
   Injectable,
   Logger,
   NotFoundException,
+  UnprocessableEntityException,
 } from '@nestjs/common';
-import { ProponentsRepository } from '../proponents/proponents.repository.js';
+import { withRequestId } from '../../common/request-context.js';
+import { OrganizationsRepository } from '../organizations/organizations.repository.js';
 import { SdgsService } from '../sdgs/sdgs.service.js';
 import type { CreateProjectDto } from './dto/create-project.dto.js';
 import type { FindProjectsQueryDto } from './dto/find-projects-query.dto.js';
@@ -26,13 +28,13 @@ import {
   parseCivilDateToUtc,
 } from './utils/date.util.js';
 
-/** Mensagem de erro para conflito de proponente principal repetido como secundário. */
-export const CONFLICT_MAIN_PROPONENT_AS_SECONDARY_MESSAGE =
-  'O proponente principal não pode ser incluído na lista de proponentes secundários';
+/** Mensagem de erro para conflito de organização principal repetido como secundário. */
+export const CONFLICT_MAIN_ORGANIZATION_AS_SECONDARY_MESSAGE =
+  'A organização principal não pode ser incluída na lista de organizações secundárias';
 
-/** Mensagem de erro para duplicidade de proponentes associados no projeto. */
-export const CONFLICT_DUPLICATE_PROPONENT_MESSAGE =
-  'A lista de proponentes associados contém identificadores duplicados';
+/** Mensagem de erro para duplicidade de organizações associadas no projeto. */
+export const CONFLICT_DUPLICATE_ORGANIZATION_MESSAGE =
+  'A lista de organizações associadas contém identificadores duplicados';
 
 /** Mensagem de erro para duplicidade de ODS no projeto. */
 export const CONFLICT_DUPLICATE_SDG_MESSAGE =
@@ -40,6 +42,8 @@ export const CONFLICT_DUPLICATE_SDG_MESSAGE =
 
 /** Mensagem de erro para projeto não localizado. */
 export const PROJECT_NOT_FOUND_MESSAGE = 'Projeto não encontrado';
+export const SD_LISTED_PREREQUISITES_MESSAGE =
+  'Não é possível listar o projeto: justificativa e pelo menos uma localização ativa são obrigatórias';
 
 /**
  * Serviço responsável pelas regras de negócio, validações de domínio e operações
@@ -51,58 +55,60 @@ export class ProjectsService {
 
   constructor(
     private readonly projectsRepository: ProjectsRepository,
-    private readonly proponentsRepository: ProponentsRepository,
+    private readonly organizationsRepository: OrganizationsRepository,
     private readonly sdgsService: SdgsService,
   ) {}
 
   /**
-   * Cria um projeto e seus vínculos com proponentes e ODS em uma única transação atômica.
+   * Cria um projeto e seus vínculos com organizações e ODS em uma única transação atômica.
    *
    * Regras de negócio:
-   * 1. Valida se o proponente principal existe e está ativo (404);
-   * 2. Valida se não há proponentes secundários duplicados entre si (409);
-   * 3. Valida se o proponente principal não foi repetido como proponente secundário (409);
-   * 4. Valida se todos os proponentes secundários informados existem e estão ativos (404);
+   * 1. Valida se a organização principal existe e está ativa (404);
+   * 2. Valida se não há organizações secundárias duplicadas entre si (409);
+   * 3. Valida se a organização principal não foi repetida como organização secundária (409);
+   * 4. Valida se todas as organizações secundárias informadas existem e estão ativas (404);
    * 5. Valida se não há ODS duplicados no array (409);
    * 6. Valida se todos os ODS informados existem e estão ativos na base (404);
    * 7. Converte e persiste as datas civis estritas sem deslocamento temporal;
-   * 8. Grava o projeto, proponentes secundários e ODS em uma transação do Prisma.
+   * 8. Grava o projeto, organizações secundárias e ODS em uma transação do Prisma.
    *
    * @param dto Dados validados da requisição de criação.
    * @returns Projeto criado com seus relacionamentos formatados.
    */
   async create(dto: CreateProjectDto): Promise<PublicProjectDetail> {
-    // 1. Confirma que o proponente principal existe e está ativo
-    const mainProponent = await this.proponentsRepository.findById(
-      dto.proponentId,
+    // 1. Confirma que a organização principal existe e está ativa
+    const mainOrganization = await this.organizationsRepository.findById(
+      dto.organizationId,
     );
-    if (!mainProponent) {
+    if (!mainOrganization) {
       throw new NotFoundException(
-        `Proponente principal com id "${dto.proponentId}" não encontrado`,
+        `Organização principal com id "${dto.organizationId}" não encontrada`,
       );
     }
 
-    // 2 e 3. Validações de duplicidades na lista de proponentes secundários
-    if (dto.proponents && dto.proponents.length > 0) {
-      const secondaryIds = dto.proponents.map((p) => p.proponentId);
+    // 2 e 3. Validações de duplicidades na lista de organizações secundárias
+    if (dto.organizations && dto.organizations.length > 0) {
+      const secondaryIds = dto.organizations.map((p) => p.organizationId);
       const uniqueSecondaryIds = new Set(secondaryIds);
 
       if (uniqueSecondaryIds.size !== secondaryIds.length) {
-        throw new ConflictException(CONFLICT_DUPLICATE_PROPONENT_MESSAGE);
+        throw new ConflictException(CONFLICT_DUPLICATE_ORGANIZATION_MESSAGE);
       }
 
-      if (uniqueSecondaryIds.has(dto.proponentId)) {
+      if (uniqueSecondaryIds.has(dto.organizationId)) {
         throw new ConflictException(
-          CONFLICT_MAIN_PROPONENT_AS_SECONDARY_MESSAGE,
+          CONFLICT_MAIN_ORGANIZATION_AS_SECONDARY_MESSAGE,
         );
       }
 
-      // 4. Confirma que todos os proponentes secundários existem
-      for (const prop of dto.proponents) {
-        const found = await this.proponentsRepository.findById(prop.proponentId);
+      // 4. Confirma que todas as organizações secundárias existem
+      for (const prop of dto.organizations) {
+        const found = await this.organizationsRepository.findById(
+          prop.organizationId,
+        );
         if (!found) {
           throw new NotFoundException(
-            `Proponente associado com id "${prop.proponentId}" não encontrado`,
+            `Organização associada com id "${prop.organizationId}" não encontrada`,
           );
         }
       }
@@ -128,12 +134,14 @@ export class ProjectsService {
       lifetimeStart,
       lifetimeEnd,
       justification: dto.justification,
-      proponentId: dto.proponentId,
-      proponents: dto.proponents,
+      organizationId: dto.organizationId,
+      organizations: dto.organizations,
       sdgUuids,
     });
 
-    this.logger.log(`Projeto criado com sucesso: ${createdProject.id}`);
+    this.logger.log(
+      withRequestId(`Projeto criado com sucesso: ${createdProject.id}`),
+    );
 
     return this.mapToProjectDetail(createdProject);
   }
@@ -186,7 +194,7 @@ export class ProjectsService {
    * Obtém os detalhes completos de um projeto ativo pelo seu identificador.
    *
    * @param id Identificador do projeto.
-   * @returns Dados do projeto, proponente principal, secundários com papéis e ODS completos.
+   * @returns Dados do projeto, organização principal, secundários com papéis e ODS completos.
    * @throws NotFoundException Quando o projeto não existir ou estiver excluído logicamente.
    */
   async findById(id: string): Promise<PublicProjectDetail> {
@@ -205,8 +213,8 @@ export class ProjectsService {
    * Regras de validação:
    * 1. Verifica se o projeto existe e está ativo (404);
    * 2. Valida coerência de datas comparando os novos valores e os valores já persistidos (400);
-   * 3. Se houver novo proponente principal, valida sua existência (404);
-   * 4. Se houver alteração de proponentes secundários, valida duplicidades (409) e existência (404);
+   * 3. Se houver nova organização principal, valida sua existência (404);
+   * 4. Se houver alteração de organizações secundárias, valida duplicidades (409) e existência (404);
    * 5. Se houver alteração de ODS, valida duplicidades (409) e existência (404);
    * 6. Preserva relacionamentos não enviados na requisição;
    * 7. Executa as modificações em transação e retorna o projeto atualizado.
@@ -223,6 +231,16 @@ export class ProjectsService {
 
     if (!existing) {
       throw new NotFoundException(PROJECT_NOT_FOUND_MESSAGE);
+    }
+
+    const targetStatus = dto.status ?? existing.status;
+    const effectiveJustification =
+      dto.justification ?? existing.justification ?? '';
+    if (
+      targetStatus === 'Listed' &&
+      (!effectiveJustification.trim() || existing.locations.length === 0)
+    ) {
+      throw new UnprocessableEntityException(SD_LISTED_PREREQUISITES_MESSAGE);
     }
 
     // Validação cruzada de datas com os valores já armazenados no banco
@@ -242,40 +260,43 @@ export class ProjectsService {
       );
     }
 
-    // Proponente principal efetivo
-    const effectiveMainProponentId = dto.proponentId ?? existing.proponentId;
+    // Organização principal efetiva
+    const effectiveMainOrganizationId =
+      dto.organizationId ?? existing.organizationId;
 
-    if (dto.proponentId !== undefined) {
-      const foundMain = await this.proponentsRepository.findById(
-        dto.proponentId,
+    if (dto.organizationId !== undefined) {
+      const foundMain = await this.organizationsRepository.findById(
+        dto.organizationId,
       );
       if (!foundMain) {
         throw new NotFoundException(
-          `Proponente principal com id "${dto.proponentId}" não encontrado`,
+          `Organização principal com id "${dto.organizationId}" não encontrada`,
         );
       }
     }
 
-    // Validação de proponentes secundários se informados no PATCH
-    if (dto.proponents !== undefined) {
-      const secondaryIds = dto.proponents.map((p) => p.proponentId);
+    // Validação de organizações secundárias se informadas no PATCH
+    if (dto.organizations !== undefined) {
+      const secondaryIds = dto.organizations.map((p) => p.organizationId);
       const uniqueSecondaryIds = new Set(secondaryIds);
 
       if (uniqueSecondaryIds.size !== secondaryIds.length) {
-        throw new ConflictException(CONFLICT_DUPLICATE_PROPONENT_MESSAGE);
+        throw new ConflictException(CONFLICT_DUPLICATE_ORGANIZATION_MESSAGE);
       }
 
-      if (uniqueSecondaryIds.has(effectiveMainProponentId)) {
+      if (uniqueSecondaryIds.has(effectiveMainOrganizationId)) {
         throw new ConflictException(
-          CONFLICT_MAIN_PROPONENT_AS_SECONDARY_MESSAGE,
+          CONFLICT_MAIN_ORGANIZATION_AS_SECONDARY_MESSAGE,
         );
       }
 
-      for (const prop of dto.proponents) {
-        const found = await this.proponentsRepository.findById(prop.proponentId);
+      for (const prop of dto.organizations) {
+        const found = await this.organizationsRepository.findById(
+          prop.organizationId,
+        );
         if (!found) {
           throw new NotFoundException(
-            `Proponente associado com id "${prop.proponentId}" não encontrado`,
+            `Organização associada com id "${prop.organizationId}" não encontrada`,
           );
         }
       }
@@ -302,12 +323,15 @@ export class ProjectsService {
         ? parseCivilDateToUtc(dto.lifetimeEnd)
         : undefined,
       justification: dto.justification,
-      proponentId: dto.proponentId,
-      proponents: dto.proponents,
+      status: dto.status,
+      organizationId: dto.organizationId,
+      organizations: dto.organizations,
       sdgUuids,
     });
 
-    this.logger.log(`Projeto atualizado com sucesso: ${updated.id}`);
+    this.logger.log(
+      withRequestId(`Projeto atualizado com sucesso: ${updated.id}`),
+    );
 
     return this.mapToProjectDetail(updated);
   }
@@ -328,38 +352,46 @@ export class ProjectsService {
 
     await this.projectsRepository.softDelete(id);
 
-    this.logger.log(`Projeto removido logicamente: ${id}`);
+    this.logger.log(withRequestId(`Projeto removido logicamente: ${id}`));
   }
 
   /**
    * Mapeia a entidade do Prisma para o formato de detalhes públicos do projeto.
    */
-  private mapToProjectDetail(
-    project: ProjectWithDetails,
-  ): PublicProjectDetail {
+  private mapToProjectDetail(project: ProjectWithDetails): PublicProjectDetail {
     return {
       id: project.id,
       name: project.name,
+      status: project.status,
       lifetimeStart: formatCivilDateToString(project.lifetimeStart) ?? '',
       lifetimeEnd: formatCivilDateToString(project.lifetimeEnd) ?? '',
       justification: project.justification,
       createdAt: project.createdAt,
       updatedAt: project.updatedAt,
-      proponent: {
-        id: project.proponent.id,
-        name: project.proponent.name,
-        email: project.proponent.email,
-        createdAt: project.proponent.createdAt,
-        updatedAt: project.proponent.updatedAt,
+      organization: {
+        id: project.organization.id,
+        name: project.organization.name,
+        email: project.organization.email,
+        createdAt: project.organization.createdAt,
+        updatedAt: project.organization.updatedAt,
       },
-      proponents: (project.projectProponents ?? []).map((pp) => ({
+      organizations: (project.projectOrganizations ?? []).map((pp) => ({
         id: pp.id,
-        proponentId: pp.proponentId,
+        organizationId: pp.organizationId,
         role: pp.role,
-        name: pp.proponent.name,
-        email: pp.proponent.email,
+        name: pp.organization.name,
+        email: pp.organization.email,
       })),
       sdgs: (project.projectSdgs ?? []).map((ps) => ps.sdg),
+      activities: project.activities.map(
+        ({ activityLocations, ...activity }) => ({
+          ...activity,
+          startDate: formatCivilDateToString(activity.startDate),
+          endDate: formatCivilDateToString(activity.endDate),
+          locationIds: activityLocations.map(({ locationId }) => locationId),
+        }),
+      ),
+      locations: project.locations,
     };
   }
 
@@ -372,17 +404,18 @@ export class ProjectsService {
     return {
       id: project.id,
       name: project.name,
+      status: project.status,
       lifetimeStart: formatCivilDateToString(project.lifetimeStart),
       lifetimeEnd: formatCivilDateToString(project.lifetimeEnd),
       justification: project.justification,
       createdAt: project.createdAt,
       updatedAt: project.updatedAt,
-      proponent: {
-        id: project.proponent.id,
-        name: project.proponent.name,
-        email: project.proponent.email,
-        createdAt: project.proponent.createdAt,
-        updatedAt: project.proponent.updatedAt,
+      organization: {
+        id: project.organization.id,
+        name: project.organization.name,
+        email: project.organization.email,
+        createdAt: project.organization.createdAt,
+        updatedAt: project.organization.updatedAt,
       },
       sdgs: (project.projectSdgs ?? []).map((ps) => ps.sdg),
     };

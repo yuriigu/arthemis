@@ -4,24 +4,14 @@ import { NavItem } from "./nav-item";
 import {
   Building2Icon,
   CloseIcon,
-  EyeIcon,
   FolderKanbanIcon,
-  GlobeIcon,
   LayoutDashboardIcon,
-  SearchIcon,
-  SettingsIcon,
-  UsersIcon,
 } from "./icons";
 
 export const SIDEBAR_NAV_ITEMS = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboardIcon },
-  { href: "/search", label: "Busca Geral", icon: SearchIcon },
-  { href: "/proponents", label: "Organizações / Proponentes", icon: Building2Icon },
+  { href: "/organizations", label: "Organizações", icon: Building2Icon },
   { href: "/projects", label: "Projetos", icon: FolderKanbanIcon },
-  { href: "/observations", label: "Observações", icon: EyeIcon },
-  { href: "/users", label: "Usuários", icon: UsersIcon },
-  { href: "/sdgs", label: "SDGs", icon: GlobeIcon },
-  { href: "/settings", label: "Configurações", icon: SettingsIcon },
 ] as const;
 
 interface SidebarProps {

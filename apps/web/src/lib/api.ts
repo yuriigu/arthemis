@@ -48,6 +48,17 @@ export class ApiError extends Error {
   }
 }
 
+type UnauthorizedHandler = () => void;
+
+let unauthorizedHandler: UnauthorizedHandler | null = null;
+
+/** Registra ou remove o handler global de sessão expirada (401). */
+export function setUnauthorizedHandler(
+  handler: UnauthorizedHandler | null,
+): void {
+  unauthorizedHandler = handler;
+}
+
 export type ApiRequestOptions = Omit<RequestInit, "body"> & {
   /** Payload serializado automaticamente como JSON (ou `FormData` cru). */
   body?: unknown;
@@ -99,6 +110,11 @@ export async function request<T>(
     } catch {
       errorBody = await response.text().catch(() => null);
     }
+
+    if (response.status === 401) {
+      unauthorizedHandler?.();
+    }
+
     throw new ApiError(
       `Requisição falhou: ${response.status} ${response.statusText}`,
       response.status,
