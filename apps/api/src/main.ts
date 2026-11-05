@@ -1,40 +1,34 @@
-import { Logger } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
-import { AppModule } from './app.module.js';
-import { configureApp } from './config/app.setup.js';
+import { ConfigService } from '@nestjs/config';
+import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { AppModule } from './app.module';
+import { ValidationPipe } from '@nestjs/common';
+import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 
-/**
- * Porta default da API: 8081, mantida por compatibilidade com o gateway
- * Traefik legado. Pode ser sobrescrita pela variável de ambiente PORT.
- */
-const DEFAULT_PORT = 8081;
-
-const logger = new Logger('Bootstrap');
-
-async function bootstrap(): Promise<void> {
+async function bootstrap() {
   const app = await NestFactory.create(AppModule);
-
-  // ValidationPipe global (whitelist/forbidNonWhitelisted/transform).
-  configureApp(app);
-
-  // Garante que o onModuleDestroy (fechamento do pool do Prisma) seja chamado
-  // em SIGTERM/SIGINT.
+  app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
+  app.useGlobalFilters(new HttpExceptionFilter());
   app.enableShutdownHooks();
+  const configService = app.get(ConfigService);
+  const port = configService.getOrThrow<number>('app.port');
+  const prefix = configService.getOrThrow<string>('app.prefix');
+  const corsOrigins = configService.getOrThrow<string[]>('app.corsOrigins');
 
-  const port = app.get(ConfigService).get<number>('PORT', DEFAULT_PORT);
+  if (prefix) {
+    app.setGlobalPrefix(prefix);
+  }
+  app.enableCors({ origin: corsOrigins });
+
+  const swaggerConfig = new DocumentBuilder()
+    .setTitle('Arthemis API')
+    .setDescription('Arthemis backend API')
+    .setVersion('1.0')
+    .addBearerAuth()
+    .build();
+  const document = SwaggerModule.createDocument(app, swaggerConfig);
+  SwaggerModule.setup('docs', app, document, { useGlobalPrefix: true });
 
   await app.listen(port);
-  logger.log(`Arthemis API is running on http://localhost:${port}`);
 }
-
-try {
-  await bootstrap();
-} catch (error) {
-  // Fail-fast: sem banco de dados (ou com env inválido) a API não sobe.
-  logger.error(
-    'Failed to start the API. Shutting down.',
-    error instanceof Error ? error.stack : String(error),
-  );
-  process.exit(1);
-}
+bootstrap();

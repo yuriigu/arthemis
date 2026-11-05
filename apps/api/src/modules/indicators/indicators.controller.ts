@@ -1,70 +1,64 @@
 import {
-  Body,
   Controller,
   Get,
-  HttpCode,
-  HttpStatus,
-  Param,
-  Patch,
-  ParseUUIDPipe,
   Post,
+  Body,
+  Put,
+  Param,
+  Delete,
+  HttpCode,
+  ParseArrayPipe,
   Query,
 } from '@nestjs/common';
-import {
-  ApiCookieAuth,
-  ApiCreatedResponse,
-  ApiNotFoundResponse,
-  ApiOkResponse,
-  ApiParam,
-  ApiTags,
-  ApiUnauthorizedResponse,
-} from '@nestjs/swagger';
-import { AUTH_COOKIE_NAME } from '../../auth/auth.constants.js';
-import { CreateIndicatorDto } from './dto/create-indicator.dto.js';
-import { FindIndicatorsQueryDto } from './dto/find-indicators-query.dto.js';
-import { UpdateIndicatorDto } from './dto/update-indicator.dto.js';
-import type { PublicIndicator } from './models/i-indicator.js';
-import { IndicatorsService } from './indicators.service.js';
+import { IndicatorsService } from './indicators.service';
+import { CreateIndicatorDto } from './dto/create-indicator.dto';
+import { UpdateIndicatorDto } from './dto/update-indicator.dto';
+import { Roles } from '../../common/decorators/roles.decorator';
+import { UserRole } from '../users/enums/user-role.enum';
+import { PaginationDto } from '../../common/dto/pagination.dto';
 
-@Controller('indicators')
-@ApiTags('indicators')
-@ApiCookieAuth(AUTH_COOKIE_NAME)
-@ApiUnauthorizedResponse({ description: 'Missing or invalid credentials.' })
+@Controller('indicator')
 export class IndicatorsController {
   constructor(private readonly indicatorsService: IndicatorsService) {}
 
-  @Post()
-  @HttpCode(HttpStatus.CREATED)
-  @ApiCreatedResponse({ description: 'Indicator created.' })
-  async create(@Body() dto: CreateIndicatorDto): Promise<PublicIndicator> {
-    return this.indicatorsService.create(dto);
+  @Post('create')
+  @Roles(UserRole.ADMIN, UserRole.MANAGER)
+  @HttpCode(202)
+  create(
+    @Body(
+      new ParseArrayPipe({
+        items: CreateIndicatorDto,
+        whitelist: true,
+        forbidNonWhitelisted: true,
+      }),
+    )
+    createIndicatorDto: CreateIndicatorDto[],
+  ) {
+    return this.indicatorsService.create(createIndicatorDto);
   }
 
   @Get()
-  @ApiOkResponse({ description: 'List of indicators.' })
-  async findAll(
-    @Query() query: FindIndicatorsQueryDto,
-  ): Promise<PublicIndicator[]> {
-    return this.indicatorsService.findAll(query);
+  findAll(@Query() pagination: PaginationDto) {
+    return this.indicatorsService.findAll(pagination);
   }
 
   @Get(':id')
-  @ApiParam({ name: 'id', format: 'uuid' })
-  @ApiOkResponse({ description: 'Indicator details.' })
-  @ApiNotFoundResponse({ description: 'Indicator not found.' })
-  async findById(
-    @Param('id', new ParseUUIDPipe()) id: string,
-  ): Promise<PublicIndicator> {
-    return this.indicatorsService.findById(id);
+  findOne(@Param('id') id: string) {
+    return this.indicatorsService.findOne(id);
   }
 
-  @Patch(':id')
-  @ApiParam({ name: 'id', format: 'uuid' })
-  @ApiOkResponse({ description: 'Indicator updated.' })
-  async update(
-    @Param('id', new ParseUUIDPipe()) id: string,
-    @Body() dto: UpdateIndicatorDto,
-  ): Promise<PublicIndicator> {
-    return this.indicatorsService.update(id, dto);
+  @Put('update/:id')
+  @Roles(UserRole.ADMIN, UserRole.MANAGER)
+  update(
+    @Param('id') id: string,
+    @Body() updateIndicatorDto: UpdateIndicatorDto,
+  ) {
+    return this.indicatorsService.update(id, updateIndicatorDto);
+  }
+
+  @Delete('delete/:id')
+  @Roles(UserRole.ADMIN, UserRole.MANAGER)
+  remove(@Param('id') id: string) {
+    return this.indicatorsService.remove(id);
   }
 }

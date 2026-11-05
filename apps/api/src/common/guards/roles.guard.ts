@@ -1,44 +1,19 @@
-import {
-  CanActivate,
-  ExecutionContext,
-  ForbiddenException,
-  Injectable,
-} from '@nestjs/common';
+import { Injectable, CanActivate, ExecutionContext } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import type { AuthenticatedRequest } from '../../auth/models/i-auth.js';
-import { IS_PUBLIC_KEY } from '../decorators/public.decorator.js';
-import { ROLES_KEY } from '../decorators/roles.decorator.js';
-import type { Role } from '../enums/role.enum.js';
+import { ROLES_KEY } from '../decorators/roles.decorator';
+import { UserRole } from '../../modules/users/enums/user-role.enum';
 
 @Injectable()
 export class RolesGuard implements CanActivate {
-  constructor(private readonly reflector: Reflector) {}
+  constructor(private reflector: Reflector) {}
 
   canActivate(context: ExecutionContext): boolean {
-    const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
-      context.getHandler(),
-      context.getClass(),
-    ]);
-
-    if (isPublic) {
-      return true;
-    }
-
-    const requiredRoles = this.reflector.getAllAndOverride<Role[]>(ROLES_KEY, [
-      context.getHandler(),
-      context.getClass(),
-    ]);
-
-    if (!requiredRoles?.length) {
-      return true;
-    }
-
-    const request = context.switchToHttp().getRequest<AuthenticatedRequest>();
-    const user = request.user;
-    if (!user || !requiredRoles.some((role) => role === user.role)) {
-      throw new ForbiddenException();
-    }
-
-    return true;
+    const requiredRoles = this.reflector.getAllAndOverride<UserRole[]>(
+      ROLES_KEY,
+      [context.getHandler(), context.getClass()],
+    );
+    const { user } = context.switchToHttp().getRequest();
+    // O 'user' vem do JwtAuthGuard (se a rota estiver protegida)
+    return requiredRoles?.some((role) => user?.role === role) ?? true;
   }
 }

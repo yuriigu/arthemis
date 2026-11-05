@@ -1,109 +1,69 @@
 import {
   BadRequestException,
   Injectable,
-  Logger,
   NotFoundException,
 } from '@nestjs/common';
-import { withRequestId } from '../../common/request-context.js';
-import type { CreateActivityDto } from './dto/create-activity.dto.js';
-import type { FindActivitiesQueryDto } from './dto/find-activities-query.dto.js';
-import type { UpdateActivityDto } from './dto/update-activity.dto.js';
-import type { PublicActivity } from './models/i-activity.js';
-import { ActivitiesRepository } from './activities.repository.js';
+import { PrismaService } from '../../prisma/prisma.service';
+import { CreateActivityDto } from './dto/create-activity.dto';
+import { UpdateActivityDto } from './dto/update-activity.dto';
 
 @Injectable()
 export class ActivitiesService {
-  private readonly logger = new Logger(ActivitiesService.name);
+  constructor(private readonly prisma: PrismaService) {}
 
-  constructor(private readonly activitiesRepository: ActivitiesRepository) {}
+  async create(data: CreateActivityDto[]) {
+    if (!data || data.length === 0)
+      throw new BadRequestException('No activities provided');
 
-  async create(dto: CreateActivityDto): Promise<PublicActivity> {
-    if (dto.startDate > dto.endDate) {
-      throw new BadRequestException(
-        'A data final da atividade não pode ser anterior à data inicial',
-      );
-    }
+    // O Prisma lida com transações de forma muito mais limpa que o GORM
+    const activities = await this.prisma.$transaction(
+      data.map((activity) =>
+        this.prisma.activity.create({
+          data: {
+            projectId: activity.projectId,
+            name: activity.name,
+            description: activity.description,
+            justification: activity.justification,
+            // Conecta as localizações (equivalente ao Replace do GORM)
+            activityLocations: activity.locationIds?.length
+              ? {
+                  create: activity.locationIds.map((id) => ({
+                    location: { connect: { id } },
+                  })),
+                }
+              : undefined,
+          },
+        }),
+      ),
+    );
+    return activities.map(({ id }) => id);
+  }
 
-    if (!(await this.activitiesRepository.hasActiveProject(dto.projectId))) {
-      throw new NotFoundException(
-        `Projeto com id "${dto.projectId}" não encontrado`,
-      );
-    }
-
-    const locationIds = dto.locationIds ?? [];
-    if (locationIds.length > 0) {
-      const foundIds = await this.activitiesRepository.findActiveLocationIds(
-        dto.projectId,
-        locationIds,
-      );
-      if (foundIds.length !== locationIds.length) {
-        throw new NotFoundException(
-          'Uma ou mais localizações ativas do projeto não foram encontradas',
-        );
-      }
-    }
-
-    const activity = await this.activitiesRepository.create({
-      projectId: dto.projectId,
-      name: dto.name,
-      description: dto.description,
-      justification: dto.justification,
-      startDate: dto.startDate,
-      endDate: dto.endDate,
-      locationIds,
+  async findOne(id: string) {
+    const activity = await this.prisma.activity.findUnique({
+      where: { id },
+      include: {
+        indicators: true,
+        activityLocations: { include: { location: true } },
+      },
     });
-    this.logger.log(withRequestId(`Atividade criada: ${activity.id}`));
+    if (!activity) throw new NotFoundException('Activity not found');
     return activity;
   }
 
-  async update(id: string, dto: UpdateActivityDto): Promise<PublicActivity> {
-    const activity = await this.activitiesRepository.findById(id);
-    if (!activity) {
-      throw new NotFoundException(`Atividade com id "${id}" não encontrada`);
-    }
-
-    const startDate = dto.startDate ?? activity.startDate;
-    const endDate = dto.endDate ?? activity.endDate;
-    if (startDate && endDate && startDate > endDate) {
-      throw new BadRequestException(
-        'A data final da atividade não pode ser anterior à data inicial',
-      );
-    }
-
-    if (dto.locationIds !== undefined) {
-      const foundIds = await this.activitiesRepository.findActiveLocationIds(
-        activity.projectId,
-        dto.locationIds,
-      );
-      if (foundIds.length !== dto.locationIds.length) {
-        throw new NotFoundException(
-          'Uma ou mais localizações ativas do projeto não foram encontradas',
-        );
-      }
-    }
-
-    const updated = await this.activitiesRepository.update(id, dto);
-    if (!updated) {
-      throw new NotFoundException(`Atividade com id "${id}" não encontrada`);
-    }
-    this.logger.log(withRequestId(`Atividade atualizada: ${updated.id}`));
-    return updated;
-  }
-
-  async findAll(query: FindActivitiesQueryDto): Promise<PublicActivity[]> {
-    return this.activitiesRepository.findMany({
-      page: query.page,
-      limit: query.limit,
-      search: query.search,
-      projectId: query.projectId,
+  async update(id: string, data: UpdateActivityDto) {
+    return this.prisma.activity.update({
+      where: { id },
+      data: {
+        name: data.name,
+        description: data.description,
+        justification: data.justification,
+      },
     });
   }
 
-  async findById(id: string): Promise<PublicActivity> {
-    const activity = await this.activitiesRepository.findById(id);
-    if (!activity) {
-      throw new NotFoundException(`Atividade com id "${id}" não encontrada`);
-    }
-    return activity;
+  async remove(id: string) {
+    await this.prisma.activity.delete({ where: { id } });
+    return true;
   }
 }

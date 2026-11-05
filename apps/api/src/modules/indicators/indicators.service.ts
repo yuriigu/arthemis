@@ -1,95 +1,69 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { withRequestId } from '../../common/request-context.js';
-import type { CreateIndicatorDto } from './dto/create-indicator.dto.js';
-import type { FindIndicatorsQueryDto } from './dto/find-indicators-query.dto.js';
-import type { UpdateIndicatorDto } from './dto/update-indicator.dto.js';
-import type { PublicIndicator } from './models/i-indicator.js';
-import { IndicatorsRepository } from './indicators.repository.js';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import { PrismaService } from '../../prisma/prisma.service';
+import { CreateIndicatorDto } from './dto/create-indicator.dto';
+import { UpdateIndicatorDto } from './dto/update-indicator.dto';
+import { PaginationDto } from '../../common/dto/pagination.dto';
 
 @Injectable()
 export class IndicatorsService {
-  private readonly logger = new Logger(IndicatorsService.name);
+  constructor(private readonly prisma: PrismaService) {}
 
-  constructor(private readonly indicatorsRepository: IndicatorsRepository) {}
+  async create(data: CreateIndicatorDto[]) {
+    if (!data || data.length === 0)
+      throw new BadRequestException('No indicators provided');
 
-  async create(dto: CreateIndicatorDto): Promise<PublicIndicator> {
-    if (!(await this.indicatorsRepository.hasActiveActivity(dto.activityId))) {
-      throw new NotFoundException(
-        `Atividade com id "${dto.activityId}" não encontrada`,
-      );
-    }
-    if (!(await this.indicatorsRepository.hasActiveLocation(dto.locationId))) {
-      throw new NotFoundException(
-        `Localização com id "${dto.locationId}" não encontrada`,
-      );
-    }
-    if (
-      !(await this.indicatorsRepository.activityAndLocationBelongToSameProject(
-        dto.activityId,
-        dto.locationId,
-      ))
-    ) {
-      throw new NotFoundException(
-        'Atividade e localização devem pertencer ao mesmo projeto',
-      );
-    }
+    const indicators = await this.prisma.indicator.createManyAndReturn({
+      data: data.map((ind) => ({
+        activityId: ind.activityId,
+        locationId: ind.locationId,
+        name: ind.name,
+        unit: ind.unit,
+        valueBaseline: ind.valueBaseline,
+        valueReference: ind.valueReference,
+        observationMethod: ind.observationMethod,
+        justification: ind.justification,
+      })),
+      select: { id: true },
+    });
+    return indicators.map(({ id }) => id);
+  }
 
-    const indicator = await this.indicatorsRepository.create(dto);
-    this.logger.log(withRequestId(`Indicador criado: ${indicator.id}`));
+  async findAll({ limit, offset }: PaginationDto) {
+    return this.prisma.indicator.findMany({
+      take: limit,
+      skip: offset,
+    });
+  }
+
+  async findOne(id: string) {
+    const indicator = await this.prisma.indicator.findUnique({
+      where: { id },
+      include: { observations: { where: { deletedAt: null } } },
+    });
+    if (!indicator) throw new NotFoundException('Indicator not found');
     return indicator;
   }
 
-  async update(id: string, dto: UpdateIndicatorDto): Promise<PublicIndicator> {
-    const current = await this.indicatorsRepository.findById(id);
-    if (!current) {
-      throw new NotFoundException(`Indicador com id "${id}" não encontrado`);
-    }
-
-    if (
-      dto.activityId !== undefined &&
-      !(await this.indicatorsRepository.hasActiveActivity(dto.activityId))
-    ) {
-      throw new NotFoundException(
-        `Atividade com id "${dto.activityId}" não encontrada`,
-      );
-    }
-    if (
-      dto.locationId !== undefined &&
-      !(await this.indicatorsRepository.hasActiveLocation(dto.locationId))
-    ) {
-      throw new NotFoundException(
-        `Localização com id "${dto.locationId}" não encontrada`,
-      );
-    }
-    if (
-      (dto.activityId !== undefined || dto.locationId !== undefined) &&
-      !(await this.indicatorsRepository.activityAndLocationBelongToSameProject(
-        dto.activityId ?? current.activityId,
-        dto.locationId ?? current.locationId,
-      ))
-    ) {
-      throw new NotFoundException(
-        'Atividade e localização devem pertencer ao mesmo projeto',
-      );
-    }
-
-    const indicator = await this.indicatorsRepository.update(id, dto);
-    if (!indicator) {
-      throw new NotFoundException(`Indicador com id "${id}" não encontrado`);
-    }
-    this.logger.log(withRequestId(`Indicador atualizado: ${indicator.id}`));
-    return indicator;
+  async update(id: string, data: UpdateIndicatorDto) {
+    return this.prisma.indicator.update({
+      where: { id },
+      data: {
+        name: data.name,
+        unit: data.unit,
+        valueBaseline: data.valueBaseline,
+        valueReference: data.valueReference,
+        observationMethod: data.observationMethod,
+        justification: data.justification,
+      },
+    });
   }
 
-  async findAll(query: FindIndicatorsQueryDto): Promise<PublicIndicator[]> {
-    return this.indicatorsRepository.findMany(query);
-  }
-
-  async findById(id: string): Promise<PublicIndicator> {
-    const indicator = await this.indicatorsRepository.findById(id);
-    if (!indicator) {
-      throw new NotFoundException(`Indicador com id "${id}" não encontrado`);
-    }
-    return indicator;
+  async remove(id: string) {
+    await this.prisma.indicator.delete({ where: { id } });
+    return true;
   }
 }
