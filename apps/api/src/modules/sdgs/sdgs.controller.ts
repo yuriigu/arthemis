@@ -1,26 +1,50 @@
-import { Controller, Get, UseGuards } from '@nestjs/common';
-import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard.js';
-import type { PublicSdg } from './models/i-sdg.js';
-import { SdgsService } from './sdgs.service.js';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Patch,
+  Param,
+  Delete,
+  Query,
+} from '@nestjs/common';
+import { SdgsService } from './sdgs.service';
+import { CreateSdgDto } from './dto/create-sdg.dto';
+import { UpdateSdgDto } from './dto/update-sdg.dto';
+import { Roles } from '../../common/decorators/roles.decorator';
+import { UserRole } from '../users/enums/user-role.enum';
+import { PaginationDto } from '../../common/dto/pagination.dto';
 
-/**
- * Rotas para os Objetivos de Desenvolvimento Sustentável (ODS).
- *
- * Todas as rotas são protegidas pelo JwtAuthGuard, alinhadas à arquitetura do projeto.
- */
-@Controller('sdgs')
-@UseGuards(JwtAuthGuard)
+@Controller('sdg')
 export class SdgsController {
   constructor(private readonly sdgsService: SdgsService) {}
 
-  /**
-   * GET /sdgs — Retorna os 17 Objetivos de Desenvolvimento Sustentável da ONU cadastrados no banco.
-   * A lista é ordenada deterministicamente pelo número oficial do ODS (1 a 17).
-   *
-   * @returns Lista de ODS ativos com seus respectivos campos completos.
-   */
+  @Post('create')
+  @Roles(UserRole.ADMIN)
+  create(@Body() createSdgDto: CreateSdgDto) {
+    return this.sdgsService.create(createSdgDto);
+  }
+
   @Get()
-  async findAll(): Promise<PublicSdg[]> {
-    return this.sdgsService.findAll();
+  findAll(@Query() pagination: PaginationDto) {
+    // O Frontend (listSdgs) espera um array de { ID, Name, Number, IconURL }
+    return this.sdgsService.findAll(pagination);
+  }
+
+  @Get(':id')
+  findOne(@Param('id') id: string) {
+    return this.sdgsService.findOne(id);
+  }
+
+  @Patch(':id')
+  @Roles(UserRole.ADMIN)
+  update(@Param('id') id: string, @Body() updateSdgDto: UpdateSdgDto) {
+    return this.sdgsService.update(id, updateSdgDto);
+  }
+
+  @Delete(':id')
+  @Roles(UserRole.ADMIN)
+  remove(@Param('id') id: string) {
+    return this.sdgsService.remove(id);
   }
 }

@@ -1,41 +1,47 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
-import { AppController } from './app.controller.js';
-import { AppService } from './app.service.js';
-import { AuthModule } from './auth/auth.module.js';
-import { envValidationSchema } from './config/env.validation.js';
-import { HealthModule } from './health/health.module.js';
-import { ProjectsModule } from './modules/projects/projects.module.js';
-import { ProponentsModule } from './modules/proponents/proponents.module.js';
-import { SdgsModule } from './modules/sdgs/sdgs.module.js';
-import { PrismaModule } from './prisma/prisma.module.js';
-import { UsersModule } from './users/users.module.js';
+import { PrismaModule } from './prisma/prisma.module';
+import { AuthModule } from './modules/auth/auth.module';
+import { OrganizationsModule } from './modules/organizations/organizations.module';
+import { UsersModule } from './modules/users/users.module';
+import { ProjectsModule } from './modules/projects/projects.module';
+import { ActivitiesModule } from './modules/activities/activities.module';
+import { LocationsModule } from './modules/locations/locations.module';
+import { IndicatorsModule } from './modules/indicators/indicators.module';
+import { ObservationsModule } from './modules/observations/observations.module';
+import { SdgsModule } from './modules/sdgs/sdgs.module';
+import appConfig from './config/app.config';
+import databaseConfig from './config/database.config';
+import { environmentValidationSchema } from './config/env.validation';
+import { AppController } from './app.controller';
+import { AppService } from './app.service';
+import { APP_GUARD } from '@nestjs/core';
+import { JwtAuthGuard } from './modules/auth/guards/jwt-auth.guard';
+import { RolesGuard } from './common/guards/roles.guard';
 
 @Module({
   imports: [
-    // Carrega o .env e valida as variáveis no boot: se faltar algo obrigatório
-    // (ex.: DATABASE_URL) a aplicação não sobe.
     ConfigModule.forRoot({
       isGlobal: true,
-      cache: true,
-      envFilePath: ['.env'],
-      // Validação via Standard Schema (zod): sem DATABASE_URL a API não sobe.
-      validationSchema: envValidationSchema,
+      load: [appConfig, databaseConfig],
+      validationSchema: environmentValidationSchema,
     }),
-    PrismaModule,
-    HealthModule,
-    UsersModule,
-    // Módulo de proponentes: CRUD + listagem para seletores, com JwtAuthGuard.
-    ProponentsModule,
-    // Módulo de ODS: listagem dos 17 Objetivos de Desenvolvimento Sustentável.
-    SdgsModule,
-    // Módulo de projetos: criação transacional, listagem paginada, edição e exclusão.
-    ProjectsModule,
-    // AuthModule depois do UsersModule: importa UsersModule para o login
-    // reutilizar o findByEmail (bcrypt.compare) e registra o JwtModule.
+    PrismaModule, // Para o banco de dados
     AuthModule,
+    OrganizationsModule,
+    UsersModule,
+    ProjectsModule,
+    ActivitiesModule,
+    LocationsModule,
+    IndicatorsModule,
+    ObservationsModule,
+    SdgsModule,
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [
+    AppService,
+    { provide: APP_GUARD, useClass: JwtAuthGuard },
+    { provide: APP_GUARD, useClass: RolesGuard },
+  ],
 })
 export class AppModule {}
