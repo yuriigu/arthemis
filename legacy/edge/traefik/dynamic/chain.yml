@@ -1,9 +1,0 @@
-http:
-  middlewares:
-    gateway-chain:
-      chain:
-        middlewares:
-          - security-default
-          - cors-default
-          - rate-limit
-          - auth-jwt
