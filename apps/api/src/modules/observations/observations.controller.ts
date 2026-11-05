@@ -1,70 +1,64 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
-  HttpStatus,
   Param,
+  ParseArrayPipe,
   Patch,
-  ParseUUIDPipe,
   Post,
   Query,
 } from '@nestjs/common';
-import {
-  ApiCookieAuth,
-  ApiCreatedResponse,
-  ApiNotFoundResponse,
-  ApiOkResponse,
-  ApiParam,
-  ApiTags,
-  ApiUnauthorizedResponse,
-} from '@nestjs/swagger';
-import { AUTH_COOKIE_NAME } from '../../auth/auth.constants.js';
-import { CreateObservationDto } from './dto/create-observation.dto.js';
-import { FindObservationsQueryDto } from './dto/find-observations-query.dto.js';
-import { UpdateObservationDto } from './dto/update-observation.dto.js';
-import type { PublicObservation } from './models/i-observation.js';
-import { ObservationsService } from './observations.service.js';
+import { Roles } from '../../common/decorators/roles.decorator';
+import { PaginationDto } from '../../common/dto/pagination.dto';
+import { UserRole } from '../users/enums/user-role.enum';
+import { CreateObservationDto } from './dto/create-observation.dto';
+import { UpdateObservationDto } from './dto/update-observation.dto';
+import { ObservationsService } from './observations.service';
 
-@Controller('observations')
-@ApiTags('observations')
-@ApiCookieAuth(AUTH_COOKIE_NAME)
-@ApiUnauthorizedResponse({ description: 'Missing or invalid credentials.' })
+@Controller('observation')
 export class ObservationsController {
   constructor(private readonly observationsService: ObservationsService) {}
 
-  @Post()
-  @HttpCode(HttpStatus.CREATED)
-  @ApiCreatedResponse({ description: 'Observation created.' })
-  async create(@Body() dto: CreateObservationDto): Promise<PublicObservation> {
-    return this.observationsService.create(dto);
+  @Get()
+  findAll(@Query() pagination: PaginationDto) {
+    return this.observationsService.findAll(pagination);
   }
 
-  @Get()
-  @ApiOkResponse({ description: 'List of observations.' })
-  async findAll(
-    @Query() query: FindObservationsQueryDto,
-  ): Promise<PublicObservation[]> {
-    return this.observationsService.findAll(query);
+  @Post('create')
+  @Roles(UserRole.ADMIN, UserRole.MANAGER)
+  @HttpCode(202)
+  create(
+    @Body(
+      new ParseArrayPipe({
+        items: CreateObservationDto,
+        whitelist: true,
+        forbidNonWhitelisted: true,
+      }),
+    )
+    createObservationDto: CreateObservationDto[],
+  ) {
+    return this.observationsService.create(createObservationDto);
   }
 
   @Get(':id')
-  @ApiParam({ name: 'id', format: 'uuid' })
-  @ApiOkResponse({ description: 'Observation details.' })
-  @ApiNotFoundResponse({ description: 'Observation not found.' })
-  async findById(
-    @Param('id', new ParseUUIDPipe()) id: string,
-  ): Promise<PublicObservation> {
-    return this.observationsService.findById(id);
+  findOne(@Param('id') id: string) {
+    return this.observationsService.findOne(id);
   }
 
-  @Patch(':id')
-  @ApiParam({ name: 'id', format: 'uuid' })
-  @ApiOkResponse({ description: 'Observation updated.' })
-  async update(
-    @Param('id', new ParseUUIDPipe()) id: string,
-    @Body() dto: UpdateObservationDto,
-  ): Promise<PublicObservation> {
-    return this.observationsService.update(id, dto);
+  @Patch('update/:id')
+  @Roles(UserRole.ADMIN, UserRole.MANAGER)
+  update(
+    @Param('id') id: string,
+    @Body() updateObservationDto: UpdateObservationDto,
+  ) {
+    return this.observationsService.update(id, updateObservationDto);
+  }
+
+  @Delete('delete/:id')
+  @Roles(UserRole.ADMIN, UserRole.MANAGER)
+  remove(@Param('id') id: string) {
+    return this.observationsService.remove(id);
   }
 }

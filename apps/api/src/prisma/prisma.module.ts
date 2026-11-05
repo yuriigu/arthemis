@@ -1,11 +1,6 @@
 import { Global, Module } from '@nestjs/common';
-import { PrismaService } from './prisma.service.js';
+import { PrismaService } from './prisma.service';
 
-/**
- * Módulo global de acesso ao banco: o PrismaService é compartilhado por todos
- * os módulos de domínio (organizations, projects, activities, ...) sem a
- * necessidade de reimportar o módulo em cada feature.
- */
 @Global()
 @Module({
   providers: [PrismaService],

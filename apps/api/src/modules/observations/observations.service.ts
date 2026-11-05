@@ -1,69 +1,80 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { withRequestId } from '../../common/request-context.js';
-import { parseCivilDateToUtc } from '../projects/utils/date.util.js';
-import type { CreateObservationDto } from './dto/create-observation.dto.js';
-import type { FindObservationsQueryDto } from './dto/find-observations-query.dto.js';
-import type { UpdateObservationDto } from './dto/update-observation.dto.js';
-import type { PublicObservation } from './models/i-observation.js';
-import { ObservationsRepository } from './observations.repository.js';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import { PrismaService } from '../../prisma/prisma.service';
+import { PaginationDto } from '../../common/dto/pagination.dto';
+import { CreateObservationDto } from './dto/create-observation.dto';
+import { UpdateObservationDto } from './dto/update-observation.dto';
 
 @Injectable()
 export class ObservationsService {
-  private readonly logger = new Logger(ObservationsService.name);
+  constructor(private readonly prisma: PrismaService) {}
 
-  constructor(
-    private readonly observationsRepository: ObservationsRepository,
-  ) {}
-
-  async create(dto: CreateObservationDto): Promise<PublicObservation> {
-    if (
-      !(await this.observationsRepository.hasActiveIndicator(dto.indicatorId))
-    ) {
-      throw new NotFoundException(
-        `Indicador com id "${dto.indicatorId}" não encontrado`,
-      );
-    }
-
-    const observation = await this.observationsRepository.create({
-      indicatorId: dto.indicatorId,
-      value: dto.value,
-      date: parseCivilDateToUtc(dto.date),
-      position: dto.position,
+  async findAll({ limit, offset }: PaginationDto) {
+    return this.prisma.observation.findMany({
+      where: { deletedAt: null },
+      take: limit,
+      skip: offset,
+      orderBy: [{ date: 'desc' }, { createdAt: 'desc' }],
+      include: {
+        indicator: {
+          select: { id: true, name: true, unit: true },
+        },
+      },
     });
-    this.logger.log(withRequestId(`Observação criada: ${observation.id}`));
+  }
+
+  async create(data: CreateObservationDto[]) {
+    if (!data || data.length === 0)
+      throw new BadRequestException('No observations provided');
+
+    const observations = await this.prisma.observation.createManyAndReturn({
+      data: data.map((observation) => ({
+        indicatorId: observation.indicatorId,
+        value: observation.value,
+        date: new Date(observation.date),
+        position: observation.position,
+      })),
+      select: { id: true },
+    });
+    return observations.map(({ id }) => id);
+  }
+
+  async findOne(id: string) {
+    const observation = await this.prisma.observation.findFirst({
+      where: { id, deletedAt: null },
+    });
+    if (!observation) throw new NotFoundException('Observation not found');
     return observation;
   }
 
-  async update(
-    id: string,
-    dto: UpdateObservationDto,
-  ): Promise<PublicObservation> {
-    if (
-      dto.indicatorId !== undefined &&
-      !(await this.observationsRepository.hasActiveIndicator(dto.indicatorId))
-    ) {
-      throw new NotFoundException(
-        `Indicador com id "${dto.indicatorId}" não encontrado`,
-      );
-    }
+  async update(id: string, data: UpdateObservationDto) {
+    const existing = await this.prisma.observation.findFirst({
+      where: { id, deletedAt: null },
+      select: { id: true },
+    });
+    if (!existing) throw new NotFoundException('Observation not found');
 
-    const observation = await this.observationsRepository.update(id, dto);
-    if (!observation) {
-      throw new NotFoundException(`Observação com id "${id}" não encontrada`);
-    }
-    this.logger.log(withRequestId(`Observação atualizada: ${observation.id}`));
-    return observation;
+    return this.prisma.observation.update({
+      where: { id },
+      data: {
+        indicatorId: data.indicatorId,
+        value: data.value,
+        date: data.date ? new Date(data.date) : undefined,
+        position: data.position,
+      },
+    });
   }
 
-  async findAll(query: FindObservationsQueryDto): Promise<PublicObservation[]> {
-    return this.observationsRepository.findMany(query);
-  }
-
-  async findById(id: string): Promise<PublicObservation> {
-    const observation = await this.observationsRepository.findById(id);
-    if (!observation) {
-      throw new NotFoundException(`Observação com id "${id}" não encontrada`);
-    }
-    return observation;
+  async remove(id: string) {
+    const result = await this.prisma.observation.updateMany({
+      where: { id, deletedAt: null },
+      data: { deletedAt: new Date() },
+    });
+    if (result.count === 0)
+      throw new NotFoundException('Observation not found');
+    return true;
   }
 }

@@ -1,50 +1,38 @@
-# ---------------------------------------------------------------------------
-# Arthemis Frontend (apps/web) — Next.js 16 + Tailwind v4
-#
-# Estágios:
-#   deps  → instala dependências (npm ci, com cache de camada)
-#   dev   → hot-reload para desenvolvimento (usado pelo docker-compose.yml)
-#   build → build de produção (standalone)
-#   runner→ imagem final enxuta de produção (node user, porta 3000)
-# ---------------------------------------------------------------------------
+# syntax=docker/dockerfile:1.7
+FROM node:24-bookworm-slim AS dependencies
 
-ARG NODE_VERSION=24
+WORKDIR /workspace/apps/web
+COPY apps/web/package.json apps/web/package-lock.json ./
+RUN --mount=type=cache,target=/root/.npm npm ci
 
-FROM node:${NODE_VERSION}-alpine AS base
-WORKDIR /app
+FROM node:24-bookworm-slim AS build
+
+WORKDIR /workspace/apps/web
 ENV NEXT_TELEMETRY_DISABLED=1
-
-FROM base AS deps
-COPY package.json package-lock.json ./
-RUN npm ci
-
-FROM base AS dev
-COPY --from=deps /app/node_modules ./node_modules
-COPY . .
-EXPOSE 3000
-CMD ["npm", "run", "dev", "--", "--hostname", "0.0.0.0", "--port", "3000"]
-
-FROM base AS build
-# NEXT_PUBLIC_* é embutida no bundle no momento do build.
-ARG NEXT_PUBLIC_API_URL=http://localhost:3000/api
-ARG API_INTERNAL_URL=http://localhost:8081
-ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL} \
-    API_INTERNAL_URL=${API_INTERNAL_URL}
-COPY --from=deps /app/node_modules ./node_modules
-COPY . .
+COPY --from=dependencies /workspace/apps/web/node_modules ./node_modules
+COPY apps/web ./
 RUN npm run build
 
-FROM node:${NODE_VERSION}-alpine AS runner
+FROM dependencies AS development
+ENV NODE_ENV=development
+ENV NEXT_TELEMETRY_DISABLED=1
+ENV HOSTNAME=0.0.0.0
+ENV PORT=3001
+
+EXPOSE 3001
+CMD ["npm", "run", "dev", "--", "--hostname", "0.0.0.0", "--port", "3001"]
+
+FROM node:24-bookworm-slim AS runtime
+
+ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
+ENV HOSTNAME=0.0.0.0
+ENV PORT=3001
 WORKDIR /app
-ENV NODE_ENV=production \
-    NEXT_TELEMETRY_DISABLED=1 \
-    PORT=3000 \
-    HOSTNAME=0.0.0.0
-RUN addgroup --system --gid 1001 nodejs \
-    && adduser --system --uid 1001 nextjs
-COPY --from=build --chown=nextjs:nodejs /app/.next/standalone ./
-COPY --from=build --chown=nextjs:nodejs /app/.next/static ./.next/static
-COPY --from=build --chown=nextjs:nodejs /app/public ./public
-USER nextjs
-EXPOSE 3000
+
+COPY --from=build /workspace/apps/web/public ./public
+COPY --from=build /workspace/apps/web/.next/standalone ./
+COPY --from=build /workspace/apps/web/.next/static ./.next/static
+
+EXPOSE 3001
 CMD ["node", "server.js"]

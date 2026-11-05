@@ -1,17 +1,30 @@
-import { Controller, Get } from '@nestjs/common';
-import { ApiOkResponse, ApiTags } from '@nestjs/swagger';
-import { Public } from './common/decorators/public.decorator.js';
-import { AppService } from './app.service.js';
+import {
+  Controller,
+  Get,
+  Logger,
+  ServiceUnavailableException,
+} from '@nestjs/common';
+import { AppService } from './app.service';
+import { Public } from './common/decorators/public.decorator';
 
 @Controller()
-@ApiTags('root')
 export class AppController {
+  private readonly logger = new Logger(AppController.name);
+
   constructor(private readonly appService: AppService) {}
 
-  @Get()
   @Public()
-  @ApiOkResponse({ description: 'API smoke-test response.' })
-  getHello(): string {
-    return this.appService.getHello();
+  @Get('health')
+  async health() {
+    try {
+      await this.appService.checkDatabase();
+      return { status: 'ok' };
+    } catch (error) {
+      this.logger.error(
+        'Database health check failed',
+        error instanceof Error ? error.stack : String(error),
+      );
+      throw new ServiceUnavailableException('Service unavailable');
+    }
   }
 }

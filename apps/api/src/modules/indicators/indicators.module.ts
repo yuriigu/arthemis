@@ -1,13 +1,10 @@
 import { Module } from '@nestjs/common';
-import { PrismaModule } from '../../prisma/prisma.module.js';
-import { IndicatorsController } from './indicators.controller.js';
-import { IndicatorsRepository } from './indicators.repository.js';
-import { IndicatorsService } from './indicators.service.js';
+import { IndicatorsService } from './indicators.service';
+import { IndicatorsController } from './indicators.controller';
 
 @Module({
-  imports: [PrismaModule],
   controllers: [IndicatorsController],
-  providers: [IndicatorsService, IndicatorsRepository],
+  providers: [IndicatorsService],
   exports: [IndicatorsService],
 })
 export class IndicatorsModule {}

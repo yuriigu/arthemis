@@ -1,47 +1,53 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { withRequestId } from '../../common/request-context.js';
-import type { CreateLocationDto } from './dto/create-location.dto.js';
-import type { FindLocationsQueryDto } from './dto/find-locations-query.dto.js';
-import type { UpdateLocationDto } from './dto/update-location.dto.js';
-import type { PublicLocation } from './models/i-location.js';
-import { LocationsRepository } from './locations.repository.js';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import { PrismaService } from '../../prisma/prisma.service';
+import { CreateLocationDto } from './dto/create-location.dto';
+import { UpdateLocationDto } from './dto/update-location.dto';
 
 @Injectable()
 export class LocationsService {
-  private readonly logger = new Logger(LocationsService.name);
+  constructor(private readonly prisma: PrismaService) {}
 
-  constructor(private readonly locationsRepository: LocationsRepository) {}
+  async create(data: CreateLocationDto[]) {
+    if (!data || data.length === 0)
+      throw new BadRequestException('No locations provided');
 
-  async create(dto: CreateLocationDto): Promise<PublicLocation> {
-    if (!(await this.locationsRepository.hasActiveProject(dto.projectId))) {
-      throw new NotFoundException(
-        `Projeto com id "${dto.projectId}" não encontrado`,
-      );
-    }
+    const locations = await this.prisma.location.createManyAndReturn({
+      data: data.map((loc) => ({
+        projectId: loc.projectId,
+        ecosystem: loc.ecosystem,
+        extent: loc.extent,
+        country: loc.country,
+        position: loc.position,
+      })),
+      select: { id: true },
+    });
+    return locations.map(({ id }) => id);
+  }
 
-    const location = await this.locationsRepository.create(dto);
-    this.logger.log(withRequestId(`Localização criada: ${location.id}`));
+  async findOne(id: string) {
+    const location = await this.prisma.location.findUnique({ where: { id } });
+    if (!location) throw new NotFoundException('Location not found');
     return location;
   }
 
-  async update(id: string, dto: UpdateLocationDto): Promise<PublicLocation> {
-    const location = await this.locationsRepository.update(id, dto);
-    if (!location) {
-      throw new NotFoundException(`Localização com id "${id}" não encontrada`);
-    }
-    this.logger.log(withRequestId(`Localização atualizada: ${location.id}`));
-    return location;
+  async update(id: string, data: UpdateLocationDto) {
+    return this.prisma.location.update({
+      where: { id },
+      data: {
+        ecosystem: data.ecosystem,
+        extent: data.extent,
+        country: data.country,
+        position: data.position,
+      },
+    });
   }
 
-  async findAll(query: FindLocationsQueryDto): Promise<PublicLocation[]> {
-    return this.locationsRepository.findMany(query);
-  }
-
-  async findById(id: string): Promise<PublicLocation> {
-    const location = await this.locationsRepository.findById(id);
-    if (!location) {
-      throw new NotFoundException(`Localização com id "${id}" não encontrada`);
-    }
-    return location;
+  async remove(id: string) {
+    await this.prisma.location.delete({ where: { id } });
+    return true;
   }
 }
