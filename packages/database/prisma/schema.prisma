@@ -1,0 +1,157 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider            = "prisma-client"
+  output              = "../generated/prisma"
+  moduleFormat        = "cjs"
+  importFileExtension = "js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserRole {
+  admin
+  manager
+  visitor
+}
+
+model User {
+  id          String     @id @default(uuid())
+  username    String     @unique
+  email       String?    @unique
+  password    String
+  role        UserRole   @default(visitor)
+  proponentId String?
+  proponent   Proponent? @relation(fields: [proponentId], references: [id])
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+}
+
+model Proponent {
+  id                String             @id @default(uuid())
+  name              String
+  email             String             @unique
+  users             User[]
+  projects          Project[]
+  projectProponents ProjectProponent[]
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+}
+
+model Project {
+  id                String             @id @default(uuid())
+  proponentId       String
+  proponent         Proponent          @relation(fields: [proponentId], references: [id])
+  name              String
+  lifetimeStart     DateTime?
+  lifetimeEnd       DateTime?
+  justification     String?
+  locations         Location[]
+  activities        Activity[]
+  projectProponents ProjectProponent[]
+  projectSdgs       ProjectSdg[]
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+}
+
+model Sdg {
+  id          String       @id @default(uuid())
+  number      Int          @unique
+  name        String
+  iconUrl     String?
+  projectSdgs ProjectSdg[]
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+}
+
+model ProjectSdg {
+  projectId String
+  sdgId     String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  sdg       Sdg     @relation(fields: [sdgId], references: [id], onDelete: Cascade)
+
+  @@id([projectId, sdgId])
+}
+
+model Activity {
+  id                String             @id @default(uuid())
+  projectId         String
+  project           Project            @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name              String
+  description       String?
+  justification     String?
+  activityLocations ActivityLocation[]
+  indicators        Indicator[]
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+}
+
+model Location {
+  id                String             @id @default(uuid())
+  projectId         String
+  project           Project            @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  ecosystem         String?
+  extent            Float?
+  country           String?
+  position          Json?
+  activityLocations ActivityLocation[]
+  indicators        Indicator[]
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+}
+
+model ActivityLocation {
+  activityId String
+  locationId String
+  activity   Activity @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  location   Location @relation(fields: [locationId], references: [id], onDelete: Cascade)
+
+  @@id([activityId, locationId])
+}
+
+model Indicator {
+  id                String    @id @default(uuid())
+  activityId        String
+  activity          Activity  @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  locationId        String?
+  location          Location? @relation(fields: [locationId], references: [id], onDelete: SetNull)
+  name              String
+  unit              String?
+  valueBaseline     Float?
+  valueReference    Float?
+  observationMethod String?
+  justification     String?
+  observations      Observation[]
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+}
+
+model Observation {
+  id          String    @id @default(uuid())
+  indicatorId String    @map("indicator_id")
+  indicator   Indicator @relation(fields: [indicatorId], references: [id], onDelete: Cascade)
+  value       Float
+  date        DateTime  @db.Date
+  position    Json?     @db.JsonB
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  deletedAt   DateTime? @map("deleted_at")
+
+  @@index([indicatorId])
+  @@map("observations")
+}
+
+model ProjectProponent {
+  projectId   String
+  proponentId String
+  role        String
+  project     Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  proponent   Proponent @relation(fields: [proponentId], references: [id], onDelete: Cascade)
+
+  @@id([projectId, proponentId])
+}
