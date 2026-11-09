@@ -1,11 +1,11 @@
 import { Suspense } from "react";
-import { OrganizationList } from "@/components/OrganizationList";
-import { ProponentForm } from "@/components/ui/form/ProponentForm";
+import { OrganizationList } from "@/features/organizations/organization-list";
+import { ProponentForm } from "@/features/organizations/proponent-form";
 import {
   createOrganizationAction,
   deleteOrganizationAction,
   updateOrganizationAction,
-} from "../actions";
+} from "@/features/organizations/actions";
 import { listOrganizations, requireAuthToken } from "@/lib/api/server";
 
 async function OrganizationsContent({
@@ -25,7 +25,7 @@ async function OrganizationsContent({
   };
 
   return (
-    <section className="mx-auto max-w-6xl space-y-6">
+    <section className="w-full space-y-6">
       <header><h1 className="text-2xl font-semibold">Organizações</h1><p className="mt-1 text-sm text-muted-foreground">Cadastre, edite e remova as organizações do sistema.</p></header>
       {params.success && messages[params.success] && <p role="status" className="rounded-md bg-secondary px-4 py-3 text-sm text-sage-green-800 dark:text-sage-green-200">{messages[params.success]}</p>}
       {params.error === "referenced" && (
@@ -55,7 +55,7 @@ export default function OrganizationsPage({
     <Suspense
       fallback={
         <section
-          className="mx-auto max-w-6xl space-y-6"
+          className="w-full space-y-6"
           aria-busy="true"
           aria-label="Carregando organizações"
         >

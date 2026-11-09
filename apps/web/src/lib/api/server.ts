@@ -265,7 +265,7 @@ export function apiRequest<T>(
 }
 
 export function loginAuthUser(input: {
-  username: string;
+  email: string;
   password: string;
 }): Promise<LoginResponse> {
   return request<LoginResponse>("auth/login", undefined, {

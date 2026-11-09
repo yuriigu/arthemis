@@ -1,12 +1,16 @@
-import { UserForm } from "@/components/ui/form/UserForm";
-import { ThemeToggle } from "@/components/theme-toggle";
+import Link from "next/link";
+import { RegisterForm } from "@/features/auth/register-form";
+import styles from "@/features/auth/login.module.css";
 
 export default function RegisterPage() {
   return (
-    <main className="relative mx-auto flex min-h-screen w-full max-w-lg flex-col justify-center px-6 py-10">
-      <div className="absolute right-4 top-4"><ThemeToggle /></div>
-      <UserForm proponents={[]} />
-      <p className="mt-4 text-center text-sm text-muted-foreground">Cadastro aguardando organizações e ação de integração com a API.</p>
-    </main>
+    <>
+      <RegisterForm />
+      <footer className={styles.loginFooter}>
+        <p className={styles.footerText}>
+          Já tem uma conta? <Link href="/login">Entre aqui</Link>
+        </p>
+      </footer>
+    </>
   );
 }

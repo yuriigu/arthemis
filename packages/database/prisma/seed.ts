@@ -20,15 +20,32 @@ const prisma = new PrismaClient({ adapter: new PrismaPg(databaseUrl) });
 
 async function seed() {
   const password = await bcrypt.hash("admin123", 10);
+  const legacyAdmin = await prisma.user.findUnique({
+    where: { username: "admin" },
+  });
+
+  if (legacyAdmin) {
+    await prisma.user.update({
+      where: { id: legacyAdmin.id },
+      data: {
+        username: "admin@email.com",
+        email: "admin@email.com",
+        password,
+        role: "admin",
+      },
+    });
+  }
 
   await prisma.user.upsert({
-    where: { username: "admin" },
+    where: { username: "admin@email.com" },
     create: {
-      username: "admin",
+      username: "admin@email.com",
+      email: "admin@email.com",
       password,
       role: "admin",
     },
     update: {
+      email: "admin@email.com",
       password,
       role: "admin",
     },
@@ -289,7 +306,7 @@ async function seed() {
     }),
   ]);
 
-  console.log("Demo seed completed. Login: admin / admin123");
+  console.log("Demo seed completed. Login: admin@email.com / admin123");
 }
 
 seed()
