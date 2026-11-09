@@ -3,7 +3,7 @@ import {
   listObservations,
   requireAuthToken,
 } from "@/lib/api/server";
-import { ProjectDetails } from "./ProjectDetails";
+import { ProjectDetails } from "@/features/projects/project-details";
 
 export default async function ProjectDetailPage({
   params,

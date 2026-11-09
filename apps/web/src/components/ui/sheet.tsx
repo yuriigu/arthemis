@@ -3,7 +3,7 @@ import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { DialogClose, DialogDescription, DialogFooter, DialogHeader, DialogOverlay, DialogTitle } from "@/components/ui/dialog";
 
-export const Sheet = DialogPrimitive.Root;
+export const SheetRoot = DialogPrimitive.Root;
 export const SheetTrigger = DialogPrimitive.Trigger;
 export const SheetOverlay = DialogOverlay;
 export const SheetHeader = DialogHeader;
