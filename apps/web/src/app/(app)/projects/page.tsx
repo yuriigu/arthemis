@@ -1,8 +1,8 @@
 import { Suspense } from "react";
-import { ProjectList } from "@/components/ProjectList";
-import { ProjectForm } from "@/components/ui/form/ProjectForm";
+import { ProjectList } from "@/features/projects/project-list";
+import { ProjectForm } from "@/features/projects/project-form";
 import { listOrganizations, listProjects, listSdgs } from "@/lib/api/server";
-import { createProjectAction, deleteProjectAction } from "../actions";
+import { createProjectAction, deleteProjectAction } from "@/features/projects/actions";
 import { requireAuthToken } from "@/lib/api/server";
 
 async function ProjectsContent({
@@ -23,7 +23,7 @@ async function ProjectsContent({
   };
 
   return (
-    <section className="mx-auto max-w-6xl space-y-6">
+    <section className="w-full space-y-6">
       <header>
         <h1 className="text-2xl font-semibold">Projetos</h1>
         <p className="mt-1 text-sm text-muted-foreground">Cadastre e consulte os projetos vinculados às organizações.</p>
@@ -63,7 +63,7 @@ export default function ProjectsPage({
     <Suspense
       fallback={
         <section
-          className="mx-auto max-w-6xl space-y-6"
+          className="w-full space-y-6"
           aria-busy="true"
           aria-label="Carregando projetos"
         >

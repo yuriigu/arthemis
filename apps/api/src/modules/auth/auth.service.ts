@@ -29,7 +29,7 @@ export class AuthService {
 
   async login(data: LoginDto) {
     const user = await this.prisma.user.findUnique({
-      where: { username: data.username },
+      where: { email: data.email },
     });
 
     if (!user || !(await bcrypt.compare(data.password, user.password))) {

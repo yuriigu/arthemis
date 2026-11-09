@@ -8,7 +8,7 @@ import {
   type User,
   requireAuthToken,
 } from "@/lib/api/server";
-import { SearchResults } from "./SearchResults";
+import { SearchResults } from "@/features/search/search-results";
 
 async function SearchContent() {
   const token = await requireAuthToken();
@@ -28,7 +28,7 @@ async function SearchContent() {
   }
 
   return (
-    <section className="mx-auto max-w-6xl space-y-6">
+    <section className="w-full space-y-6">
       <header>
         <h1 className="text-2xl font-semibold">Busca Geral</h1>
         <p className="mt-1 text-sm text-muted-foreground">Pesquise projetos, organizações e usuários disponíveis para sua conta.</p>
@@ -64,7 +64,7 @@ export default function SearchPage() {
     <Suspense
       fallback={
         <section
-          className="mx-auto max-w-6xl space-y-6"
+          className="w-full space-y-6"
           aria-busy="true"
           aria-label="Carregando busca"
         >

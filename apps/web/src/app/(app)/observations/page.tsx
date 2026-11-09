@@ -1,5 +1,5 @@
 import { Suspense } from "react";
-import { ObservationList } from "@/components/ObservationList";
+import { ObservationList } from "@/features/observations/observation-list";
 import {
   listIndicators,
   listObservations,
@@ -9,7 +9,7 @@ import {
   createObservationAction,
   deleteObservationAction,
   updateObservationAction,
-} from "../actions";
+} from "@/features/observations/actions";
 
 async function ObservationsContent() {
   const token = await requireAuthToken();
@@ -19,7 +19,7 @@ async function ObservationsContent() {
   ]);
 
   return (
-    <section className="mx-auto max-w-5xl space-y-6">
+    <section className="w-full space-y-6">
       <header>
         <h1 className="text-2xl font-semibold">Observações</h1>
         <p className="mt-1 text-sm text-muted-foreground">Acompanhe observações vinculadas aos indicadores.</p>
@@ -40,7 +40,7 @@ export default function ObservationsPage() {
     <Suspense
       fallback={
         <section
-          className="mx-auto max-w-5xl space-y-6"
+          className="w-full space-y-6"
           aria-busy="true"
           aria-label="Carregando observações"
         >

@@ -30,9 +30,10 @@ ENV HOSTNAME=0.0.0.0
 ENV PORT=3001
 WORKDIR /app
 
-COPY --from=build /workspace/apps/web/public ./public
-COPY --from=build /workspace/apps/web/.next/standalone ./
-COPY --from=build /workspace/apps/web/.next/static ./.next/static
+COPY --chown=node:node --from=build /workspace/apps/web/public ./public
+COPY --chown=node:node --from=build /workspace/apps/web/.next/standalone ./
+COPY --chown=node:node --from=build /workspace/apps/web/.next/static ./.next/static
 
 EXPOSE 3001
+USER node
 CMD ["node", "server.js"]
