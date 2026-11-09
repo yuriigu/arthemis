@@ -18,6 +18,7 @@ import {
   updateOrganization,
   updateObservation,
   updateUser,
+  ApiError,
   type UserRole,
 } from "@/lib/api/server";
 import {
@@ -55,7 +56,12 @@ export async function updateOrganizationAction(formData: FormData) {
 export async function deleteOrganizationAction(formData: FormData) {
   const token = await requireAuthToken();
   const id = requireUuid(requiredFormString(formData, "id"), "organização");
-  await deleteOrganization(id, token);
+  try {
+    await deleteOrganization(id, token);
+  } catch (error) {
+    if (!(error instanceof ApiError) || error.status !== 409) throw error;
+    redirect("/organizations?error=referenced");
+  }
   revalidatePath("/organizations");
   redirect("/organizations?success=deleted");
 }
