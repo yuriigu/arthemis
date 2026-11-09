@@ -8,6 +8,7 @@ import {
   listProjects,
   requireAuthToken,
 } from "@/lib/api/server";
+import { isProjectActiveAt } from "@/components/ui/chart/chart-utils";
 import { DashboardCharts } from "./dashboard/DashboardCharts";
 
 async function DashboardContent() {
@@ -19,11 +20,7 @@ async function DashboardContent() {
     listIndicators(token),
   ]);
   const now = getCurrentTimestamp();
-  const activeProjects = projects.filter((project) => {
-    const start = project.lifetimeStart ? Date.parse(project.lifetimeStart) : Number.NEGATIVE_INFINITY;
-    const end = project.lifetimeEnd ? Date.parse(project.lifetimeEnd) : Number.POSITIVE_INFINITY;
-    return start <= now && end >= now;
-  });
+  const activeProjects = projects.filter((project) => isProjectActiveAt(project, now));
 
   return (
     <section className="space-y-8">
