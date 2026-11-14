@@ -23,3 +23,4 @@ export const standardSdgs: StandardSdg[] = [
   { number: 16, name: "Paz, Justiça e Instituições Eficazes", iconUrl: null },
   { number: 17, name: "Parcerias e Meios de Implementação", iconUrl: null },
 ];
+ 
