@@ -584,3 +584,4 @@ export function ProjectDetails({
     </article>
   );
 }
+ 
