@@ -11,9 +11,9 @@ import {
   Query,
 } from '@nestjs/common';
 import { Roles } from '../../common/decorators/roles.decorator';
-import { PaginationDto } from '../../common/dto/pagination.dto';
 import { UserRole } from '../users/enums/user-role.enum';
 import { CreateObservationDto } from './dto/create-observation.dto';
+import { FindObservationsDto } from './dto/find-observations.dto';
 import { UpdateObservationDto } from './dto/update-observation.dto';
 import { ObservationsService } from './observations.service';
 
@@ -22,8 +22,8 @@ export class ObservationsController {
   constructor(private readonly observationsService: ObservationsService) {}
 
   @Get()
-  findAll(@Query() pagination: PaginationDto) {
-    return this.observationsService.findAll(pagination);
+  findAll(@Query() query: FindObservationsDto) {
+    return this.observationsService.findAll(query);
   }
 
   @Post('create')
