@@ -76,4 +76,4 @@ export default function ProjectsPage({
       <ProjectsContent searchParams={searchParams} />
     </Suspense>
   );
-}
+} 
