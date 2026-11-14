@@ -58,3 +58,4 @@ export function ProjectList({ projects, deleteAction }: { projects: ProjectListI
     </section>
   );
 }
+ 
