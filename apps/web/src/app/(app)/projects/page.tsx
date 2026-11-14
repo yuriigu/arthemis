@@ -43,7 +43,7 @@ async function ProjectsContent({
         <ProjectList
           projects={projects.map((project) => ({
             ...project,
-            locations: [],
+            locations: project.locations,
             lifetime_start: project.lifetimeStart ?? "",
             lifetime_end: project.lifetimeEnd ?? "",
           }))}

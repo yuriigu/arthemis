@@ -9,14 +9,16 @@ import type { FormAction } from "@/lib/types";
 export interface ProjectListItem {
   id: number | string;
   name: string;
-  locations?: Array<{ ecosystem: string }>;
+  locations?: Array<{ ecosystem: string | null }>;
   lifetime_start: string | Date;
   lifetime_end: string | Date;
 }
 
 function formatDate(value: string | Date) {
   const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? "—" : date.toLocaleDateString("pt-BR");
+  return Number.isNaN(date.getTime())
+    ? "—"
+    : date.toLocaleDateString("pt-BR", { timeZone: "UTC" });
 }
 
 export function ProjectList({ projects, deleteAction }: { projects: ProjectListItem[]; deleteAction?: FormAction }) {
@@ -26,7 +28,9 @@ export function ProjectList({ projects, deleteAction }: { projects: ProjectListI
     return projects.filter((project) =>
       !needle || String(project.id).toLowerCase().includes(needle) ||
       project.name.toLowerCase().includes(needle) ||
-      project.locations?.some((location) => location.ecosystem.toLowerCase().includes(needle)),
+      project.locations?.some((location) =>
+        location.ecosystem?.toLowerCase().includes(needle),
+      ),
     );
   }, [projects, query]);
 

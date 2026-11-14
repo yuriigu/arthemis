@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { LineChart, type LineChartDataPoint } from "@/components/ui/chart";
@@ -10,6 +9,7 @@ import {
   type MapLocation,
   type MapObservation,
 } from "@/features/observations/observation-map";
+import { SdgIcon } from "./sdg-icon";
 
 interface Location {
   id: string;
@@ -318,26 +318,14 @@ export function ProjectDetails({
             aria-label="Objetivos de Desenvolvimento Sustentável"
           >
             {project.projectSdgs.map(({ sdg }) => {
-              const label = `ODS ${sdg.number}: ${sdg.name}`;
-              return sdg.iconUrl ? (
-                <Image
+              return (
+                <SdgIcon
                   key={sdg.id}
-                  src={sdg.iconUrl}
-                  alt={label}
-                  title={label}
-                  width={56}
-                  height={56}
-                  unoptimized
-                  className="size-14 rounded-md object-cover"
+                  iconUrl={sdg.iconUrl}
+                  number={sdg.number}
+                  name={sdg.name}
+                  className="size-14 shrink-0"
                 />
-              ) : (
-                <span
-                  key={sdg.id}
-                  title={label}
-                  className="rounded-md bg-muted px-3 py-2 text-xs font-medium text-foreground"
-                >
-                  {label}
-                </span>
               );
             })}
           </div>

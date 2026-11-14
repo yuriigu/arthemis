@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
+import { redirect, unstable_rethrow } from "next/navigation";
 import {
   addProjectProponents,
   createActivities,
@@ -13,6 +13,7 @@ import {
   requiredFormString,
   requireUuid,
 } from "@/lib/api/server";
+import type { ProjectActionState } from "@/lib/types";
 
 interface SubmittedProject {
   name: string;
@@ -86,7 +87,7 @@ function finiteNumber(value: number | string, field: string) {
   return number;
 }
 
-export async function createProjectAction(formData: FormData) {
+async function performProjectCreation(formData: FormData): Promise<ProjectActionState> {
   const token = await requireAuthToken();
   const data = parseProject(formData);
   const proponentId = requireUuid(data.proponent_id, "organização");
@@ -169,6 +170,23 @@ export async function createProjectAction(formData: FormData) {
 
   revalidatePath("/projects");
   redirect("/projects?success=created");
+}
+
+export async function createProjectAction(
+  _previousState: ProjectActionState,
+  formData: FormData,
+): Promise<ProjectActionState> {
+  try {
+    return await performProjectCreation(formData);
+  } catch (error) {
+    unstable_rethrow(error);
+    return {
+      error:
+        error instanceof Error
+          ? error.message
+          : "Não foi possível cadastrar o projeto. Tente novamente.",
+    };
+  }
 }
 
 export async function deleteProjectAction(formData: FormData) {
