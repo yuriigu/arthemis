@@ -88,7 +88,7 @@ export interface Sdg {
   id: string;
   name: string;
   number: number;
-  iconUrl: string;
+  iconUrl: string | null;
 }
 
 export interface Location {
@@ -148,6 +148,14 @@ export interface Project {
     role: string;
   }>;
   projectSdgs: Array<{ sdg: Sdg }>;
+}
+
+export interface ProjectSummary {
+  id: string;
+  name: string;
+  lifetimeStart: string | null;
+  lifetimeEnd: string | null;
+  locations: Array<{ ecosystem: string | null }>;
 }
 
 export interface CreateOrganizationInput {
@@ -266,12 +274,30 @@ export function jsonBody(value: unknown) {
   return JSON.stringify(value);
 }
 
-function pagination(limit = 100, offset = 0) {
-  const params = new URLSearchParams({
-    limit: String(limit),
-    offset: String(offset),
-  });
-  return params.toString();
+async function listAllPages<T>(
+  path: string,
+  token: string,
+  limit = 100,
+  offset = 0,
+  filters?: URLSearchParams,
+): Promise<T[]> {
+  const pageSize = Math.min(limit, 100);
+  if (!Number.isInteger(pageSize) || pageSize < 1) {
+    throw new RangeError("O limite da página deve estar entre 1 e 100.");
+  }
+
+  let pageOffset = offset;
+  const items: T[] = [];
+
+  while (true) {
+    const params = new URLSearchParams(filters);
+    params.set("limit", String(pageSize));
+    params.set("offset", String(pageOffset));
+    const page = await request<T[]>(`${path}?${params.toString()}`, token);
+    items.push(...page);
+    if (page.length < pageSize) return items;
+    pageOffset += page.length;
+  }
 }
 
 export function apiRequest<T>(
@@ -303,10 +329,7 @@ export function registerAuthUser(input: {
 }
 
 export function listOrganizations(token: string, limit = 100, offset = 0) {
-  return request<Organization[]>(
-    `organizations?${pagination(limit, offset)}`,
-    token,
-  );
+  return listAllPages<Organization>("organizations", token, limit, offset);
 }
 
 export function createOrganization(
@@ -345,7 +368,7 @@ export function deleteOrganization(id: string, token: string) {
 }
 
 export function listUsers(token: string, limit = 100, offset = 0) {
-  return request<User[]>(`user?${pagination(limit, offset)}`, token);
+  return listAllPages<User>("user", token, limit, offset);
 }
 
 export function createUser(input: CreateUserInput, token: string) {
@@ -373,7 +396,7 @@ export function deleteUser(id: string, token: string) {
 }
 
 export function listSdgs(token: string, limit = 100, offset = 0) {
-  return request<Sdg[]>(`sdg?${pagination(limit, offset)}`, token);
+  return listAllPages<Sdg>("sdg", token, limit, offset);
 }
 
 export function createSdg(input: CreateSdgInput, token: string) {
@@ -405,7 +428,7 @@ export function deleteSdg(id: string, token: string) {
 }
 
 export function listProjects(token: string, limit = 100, offset = 0) {
-  return request<Project[]>(`project?${pagination(limit, offset)}`, token);
+  return listAllPages<ProjectSummary>("project", token, limit, offset);
 }
 
 export function getProject(id: string, token: string) {
@@ -520,7 +543,7 @@ export function deleteActivity(id: string, token: string) {
 }
 
 export function listIndicators(token: string, limit = 100, offset = 0) {
-  return request<Indicator[]>(`indicator?${pagination(limit, offset)}`, token);
+  return listAllPages<Indicator>("indicator", token, limit, offset);
 }
 
 export function listObservations(
@@ -529,28 +552,19 @@ export function listObservations(
   offset = 0,
   projectId?: string,
 ) {
-  const params = new URLSearchParams(pagination(limit, offset));
-  if (projectId) params.set("projectId", projectId);
-  return request<Observation[]>(`observation?${params.toString()}`, token);
+  const filters = new URLSearchParams();
+  if (projectId) filters.set("projectId", projectId);
+  return listAllPages<Observation>(
+    "observation",
+    token,
+    limit,
+    offset,
+    filters,
+  );
 }
 
-export async function listProjectObservations(
-  token: string,
-  projectId: string,
-) {
-  const limit = 100;
-  const observations: Observation[] = [];
-
-  while (true) {
-    const page = await listObservations(
-      token,
-      limit,
-      observations.length,
-      projectId,
-    );
-    observations.push(...page);
-    if (page.length < limit) return observations;
-  }
+export function listProjectObservations(token: string, projectId: string) {
+  return listObservations(token, 100, 0, projectId);
 }
 
 export function createObservations(
@@ -619,3 +633,4 @@ export function deleteIndicator(id: string, token: string) {
     method: "DELETE",
   });
 }
+ 
