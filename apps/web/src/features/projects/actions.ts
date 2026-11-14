@@ -196,3 +196,4 @@ export async function deleteProjectAction(formData: FormData) {
   revalidatePath("/projects");
   redirect("/projects?success=deleted");
 }
+ 
