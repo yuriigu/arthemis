@@ -1,17 +1,27 @@
 "use client";
 
-import { useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
+import { useMemo, useState } from "react";
+import { LineChart, type LineChartDataPoint } from "@/components/ui/chart";
+import { Select } from "@/components/ui/select";
+import {
+  ObservationMap,
+  type MapLocation,
+  type MapObservation,
+} from "@/features/observations/observation-map";
 
 interface Location {
   id: string;
   ecosystem?: string | null;
   country?: string | null;
   extent?: number | null;
+  position?: unknown;
 }
 
 interface Indicator {
   id: string;
+  activityId: string;
   name: string;
   unit?: string | null;
   valueBaseline?: number | null;
@@ -25,7 +35,17 @@ interface Observation {
   indicatorId: string;
   value: number;
   date: string;
+  position?: unknown | null;
   indicator?: { name: string; unit: string | null };
+}
+
+interface Activity {
+  id: string;
+  name: string;
+  description?: string | null;
+  justification?: string | null;
+  indicators: Indicator[];
+  activityLocations: Array<{ location: Location }>;
 }
 
 interface Project {
@@ -35,15 +55,10 @@ interface Project {
   lifetimeEnd: string | null;
   justification?: string | null;
   locations: Location[];
-  activities: Array<{
-    id: string;
-    name: string;
-    description?: string | null;
-    justification?: string | null;
-    indicators: Indicator[];
-    activityLocations: Array<{ location: Location }>;
+  activities: Activity[];
+  projectSdgs: Array<{
+    sdg: { id: string; number: number; name: string; iconUrl?: string | null };
   }>;
-  projectSdgs: Array<{ sdg: { id: string; number: number; name: string; iconUrl?: string | null } }>;
 }
 
 type Tab = "activities" | "locations" | "indicators" | "observations";
@@ -54,23 +69,91 @@ const tabs: Array<{ id: Tab; label: string }> = [
   { id: "observations", label: "Observações" },
 ];
 
+const indicatorPalette = [
+  "var(--chart-1)",
+  "var(--chart-2)",
+  "var(--color-sage-green-700)",
+  "var(--primary)",
+  "var(--destructive)",
+  "var(--foreground)",
+] as const;
+
 function formatDate(value: string | null) {
   if (!value) return "—";
   const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? "—" : date.toLocaleDateString("pt-BR", { timeZone: "UTC" });
+  return Number.isNaN(date.getTime())
+    ? "—"
+    : date.toLocaleDateString("pt-BR", { timeZone: "UTC" });
 }
 
-function IndicatorList({ indicators }: { indicators: Indicator[] }) {
-  if (!indicators.length) return <p className="text-sm text-muted-foreground">Nenhum indicador vinculado.</p>;
-  return <ul className="divide-y divide-border">
-    {indicators.map((indicator) => <li key={indicator.id} className="space-y-1 py-3">
-      <strong>{indicator.name}</strong>
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function getPointCoordinates(position: unknown): [number, number] | null {
+  const geometry =
+    isRecord(position) && position.type === "Feature"
+      ? position.geometry
+      : position;
+  if (
+    !isRecord(geometry) ||
+    geometry.type !== "Point" ||
+    !Array.isArray(geometry.coordinates)
+  ) {
+    return null;
+  }
+
+  const [longitude, latitude] = geometry.coordinates;
+  if (
+    typeof longitude !== "number" ||
+    !Number.isFinite(longitude) ||
+    longitude < -180 ||
+    longitude > 180 ||
+    typeof latitude !== "number" ||
+    !Number.isFinite(latitude) ||
+    latitude < -90 ||
+    latitude > 90
+  ) {
+    return null;
+  }
+
+  return [longitude, latitude];
+}
+
+function IndicatorList({
+  indicators,
+  activityNames,
+}: {
+  indicators: Indicator[];
+  activityNames: Map<string, string>;
+}) {
+  if (!indicators.length) {
+    return (
       <p className="text-sm text-muted-foreground">
-        Unidade: {indicator.unit || "—"} · Baseline: {indicator.valueBaseline ?? "—"} · Referência: {indicator.valueReference ?? "—"}
+        Nenhum indicador vinculado.
       </p>
-      {indicator.observationMethod && <p className="text-sm text-muted-foreground">Método: {indicator.observationMethod}</p>}
-    </li>)}
-  </ul>;
+    );
+  }
+
+  return (
+    <ul className="divide-y divide-border">
+      {indicators.map((indicator) => (
+        <li key={indicator.id} className="space-y-1 py-3">
+          <strong>{indicator.name}</strong>
+          <p className="text-sm text-muted-foreground">
+            Atividade: {activityNames.get(indicator.id) ?? "—"} · Unidade:{" "}
+            {indicator.unit || "—"} · Baseline: {indicator.valueBaseline ?? "—"}{" "}
+            · Referência: {indicator.valueReference ?? "—"}
+          </p>
+          {indicator.observationMethod && (
+            <p className="text-sm text-muted-foreground">
+              Método: {indicator.observationMethod}
+            </p>
+          )}
+        </li>
+      ))}
+    </ul>
+  );
 }
 
 export function ProjectDetails({
@@ -81,82 +164,434 @@ export function ProjectDetails({
   observations: Observation[];
 }) {
   const [selected, setSelected] = useState<Tab>("activities");
-  const indicators = project.activities.flatMap((activity) => activity.indicators ?? []);
-  const indicatorIds = new Set(indicators.map((indicator) => indicator.id));
-  const projectObservations = observations.filter((item) => indicatorIds.has(item.indicatorId));
-  const totalArea = project.locations.reduce((sum, location) => sum + Number(location.extent ?? 0), 0);
-  const locationSummary = Array.from(new Set(
-    project.locations.map((location) => [location.country, location.ecosystem].filter(Boolean).join(" · ")).filter(Boolean),
-  ));
+  const [selectedActivityId, setSelectedActivityId] = useState(
+    project.activities[0]?.id ?? "",
+  );
+  const indicators = project.activities.flatMap(
+    (activity) => activity.indicators ?? [],
+  );
+  const activityNames = new Map(
+    project.activities.flatMap((activity) =>
+      (activity.indicators ?? []).map(
+        (indicator) => [indicator.id, activity.name] as const,
+      ),
+    ),
+  );
+  const colorsByIndicator = new Map(
+    indicators.map(
+      (indicator, index) =>
+        [
+          indicator.id,
+          indicatorPalette[index % indicatorPalette.length],
+        ] as const,
+    ),
+  );
+  const observationsByIndicator = useMemo(() => {
+    const grouped = new Map<string, Observation[]>();
+    for (const observation of observations) {
+      const group = grouped.get(observation.indicatorId) ?? [];
+      group.push(observation);
+      grouped.set(observation.indicatorId, group);
+    }
+    return grouped;
+  }, [observations]);
+
+  const selectedActivity =
+    project.activities.find((activity) => activity.id === selectedActivityId) ??
+    null;
+  const selectedActivityIndicators = selectedActivity?.indicators ?? [];
+  const selectedActivityObservations = selectedActivityIndicators.flatMap(
+    (indicator) => observationsByIndicator.get(indicator.id) ?? [],
+  );
+  const chartData = (() => {
+    const dailyValues = new Map<
+      string,
+      Map<string, { sum: number; count: number }>
+    >();
+
+    for (const indicator of selectedActivityIndicators) {
+      for (const observation of observationsByIndicator.get(indicator.id) ??
+        []) {
+        const timestamp = Date.parse(observation.date);
+        if (!Number.isFinite(timestamp)) continue;
+        const date = new Date(timestamp).toISOString().slice(0, 10);
+        const values = dailyValues.get(date) ?? new Map();
+        const current = values.get(indicator.id) ?? { sum: 0, count: 0 };
+        values.set(indicator.id, {
+          sum: current.sum + observation.value,
+          count: current.count + 1,
+        });
+        dailyValues.set(date, values);
+      }
+    }
+
+    return Array.from(dailyValues.entries())
+      .sort(([first], [second]) => first.localeCompare(second))
+      .map(([date, values]) => {
+        const point: LineChartDataPoint = {
+          date: new Date(`${date}T00:00:00.000Z`),
+        };
+        for (const indicator of selectedActivityIndicators) {
+          const value = values.get(indicator.id);
+          point[indicator.id] = value ? value.sum / value.count : null;
+        }
+        return point;
+      });
+  })();
+  const chartSeries = selectedActivityIndicators.map((indicator) => ({
+    key: indicator.id,
+    label: indicator.name,
+    color: colorsByIndicator.get(indicator.id) ?? "var(--primary)",
+  }));
+  const mapLocations: MapLocation[] =
+    selectedActivity?.activityLocations.map(({ location }) => location) ?? [];
+  const indicatorById = new Map(
+    selectedActivityIndicators.map((indicator) => [indicator.id, indicator]),
+  );
+  const mapObservations: MapObservation[] =
+    selectedActivityObservations.flatMap((observation) => {
+      const coordinates = getPointCoordinates(observation.position);
+      if (!coordinates) return [];
+      const indicator = indicatorById.get(observation.indicatorId);
+      return [
+        {
+          id: observation.id,
+          name: indicator?.name ?? observation.indicator?.name ?? "Indicador",
+          unit: indicator?.unit ?? observation.indicator?.unit ?? "",
+          value: observation.value,
+          date: observation.date,
+          lng: coordinates[0],
+          lat: coordinates[1],
+          color:
+            colorsByIndicator.get(observation.indicatorId) ?? "var(--primary)",
+        },
+      ];
+    });
+  const totalArea = project.locations.reduce(
+    (sum, location) => sum + Number(location.extent ?? 0),
+    0,
+  );
+  const locationSummary = Array.from(
+    new Set(
+      project.locations
+        .map((location) =>
+          [location.country, location.ecosystem].filter(Boolean).join(" · "),
+        )
+        .filter(Boolean),
+    ),
+  );
 
   return (
     <article className="w-full space-y-6">
-      <Link href="/projects" className="text-sm font-medium text-primary hover:underline">← Voltar aos projetos</Link>
+      <Link
+        href="/projects"
+        className="text-sm font-medium text-primary hover:underline"
+      >
+        ← Voltar aos projetos
+      </Link>
       <header className="space-y-4 rounded-lg border border-border bg-card p-6">
         <h1 className="text-2xl font-semibold">{project.name}</h1>
         <div className="grid gap-3 text-sm text-muted-foreground sm:grid-cols-2">
-          <p><strong className="text-foreground">Vigência:</strong> {formatDate(project.lifetimeStart)} até {formatDate(project.lifetimeEnd)}</p>
-          <p><strong className="text-foreground">Área total:</strong> {totalArea.toLocaleString("pt-BR")} ha</p>
-          <p className="sm:col-span-2"><strong className="text-foreground">Localização:</strong> {locationSummary.join("; ") || "Não informada"}</p>
+          <p>
+            <strong className="text-foreground">Vigência:</strong>{" "}
+            {formatDate(project.lifetimeStart)} até{" "}
+            {formatDate(project.lifetimeEnd)}
+          </p>
+          <p>
+            <strong className="text-foreground">Área total:</strong>{" "}
+            {totalArea.toLocaleString("pt-BR")} ha
+          </p>
+          <p className="sm:col-span-2">
+            <strong className="text-foreground">Localização:</strong>{" "}
+            {locationSummary.join("; ") || "Não informada"}
+          </p>
         </div>
-        {project.justification && <p className="text-sm text-muted-foreground"><strong className="text-foreground">Justificativa:</strong> {project.justification}</p>}
-        {!!project.projectSdgs.length && <div className="flex flex-wrap gap-2" aria-label="Objetivos de Desenvolvimento Sustentável">
-          {project.projectSdgs.map(({ sdg }) => <span key={sdg.id} title={sdg.name} className="rounded-md bg-muted px-3 py-2 text-xs font-medium">ODS {sdg.number}: {sdg.name}</span>)}
-        </div>}
+        {project.justification && (
+          <p className="text-sm text-muted-foreground">
+            <strong className="text-foreground">Justificativa:</strong>{" "}
+            {project.justification}
+          </p>
+        )}
+        {!!project.projectSdgs.length && (
+          <div
+            className="flex flex-wrap gap-2"
+            aria-label="Objetivos de Desenvolvimento Sustentável"
+          >
+            {project.projectSdgs.map(({ sdg }) => {
+              const label = `ODS ${sdg.number}: ${sdg.name}`;
+              return sdg.iconUrl ? (
+                <Image
+                  key={sdg.id}
+                  src={sdg.iconUrl}
+                  alt={label}
+                  title={label}
+                  width={56}
+                  height={56}
+                  unoptimized
+                  className="size-14 rounded-md object-cover"
+                />
+              ) : (
+                <span
+                  key={sdg.id}
+                  title={label}
+                  className="rounded-md bg-muted px-3 py-2 text-xs font-medium text-foreground"
+                >
+                  {label}
+                </span>
+              );
+            })}
+          </div>
+        )}
       </header>
 
       <section className="space-y-4 rounded-lg border border-border bg-card p-5">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <h2 className="text-lg font-semibold">
+              Monitoramento de Atividade
+            </h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Acompanhe os indicadores, observações e localizações da atividade
+              selecionada.
+            </p>
+          </div>
+          <div className="w-full sm:max-w-sm">
+            <label
+              htmlFor="monitoring-activity"
+              className="mb-1 block text-sm font-medium"
+            >
+              Atividade
+            </label>
+            <Select
+              id="monitoring-activity"
+              aria-label="Selecionar atividade para monitoramento"
+              value={selectedActivityId}
+              onChange={(event) => setSelectedActivityId(event.target.value)}
+              disabled={!project.activities.length}
+            >
+              <option value="">Selecione uma atividade</option>
+              {project.activities.map((activity) => (
+                <option key={activity.id} value={activity.id}>
+                  {activity.name}
+                </option>
+              ))}
+            </Select>
+          </div>
+        </div>
+        {selectedActivity ? (
+          <div className="grid min-w-0 gap-4 xl:grid-cols-2">
+            <LineChart
+              title="Indicadores ao longo do tempo"
+              description="Valores das observações registradas em cada data."
+              data={chartData}
+              series={chartSeries}
+              dotted
+              dateFormat="day"
+              className="min-w-0"
+            />
+            <section className="min-w-0 space-y-3 rounded-lg border border-border bg-card p-4">
+              <div>
+                <h3 className="font-semibold">Localizações e observações</h3>
+                <p className="text-sm text-muted-foreground">
+                  {selectedActivity.name}
+                </p>
+              </div>
+              <ObservationMap
+                locations={mapLocations}
+                observations={mapObservations}
+              />
+            </section>
+          </div>
+        ) : (
+          <p className="rounded-md border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+            Nenhuma atividade cadastrada para monitoramento.
+          </p>
+        )}
+      </section>
+
+      <section className="space-y-4 rounded-lg border border-border bg-card p-5">
         <h2 className="text-lg font-semibold">Detalhes do projeto</h2>
-        <div role="tablist" aria-label="Detalhes do projeto" className="flex flex-wrap gap-2 border-b border-border pb-3">
-          {tabs.map((tab) => <button
-            type="button"
-            role="tab"
-            key={tab.id}
-            aria-selected={selected === tab.id}
-            onClick={() => setSelected(tab.id)}
-            className={`rounded-md px-3 py-2 text-sm font-medium ${selected === tab.id ? "bg-primary text-white" : "bg-muted text-foreground/80 hover:bg-accent"}`}
-          >{tab.label}</button>)}
+        <div
+          role="tablist"
+          aria-label="Detalhes do projeto"
+          className="flex flex-wrap gap-2 border-b border-border pb-3"
+        >
+          {tabs.map((tab) => (
+            <button
+              type="button"
+              role="tab"
+              key={tab.id}
+              aria-selected={selected === tab.id}
+              onClick={() => setSelected(tab.id)}
+              className={`rounded-md px-3 py-2 text-sm font-medium ${
+                selected === tab.id
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-muted text-foreground/80 hover:bg-accent"
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
         </div>
 
-        {selected === "activities" && <div role="tabpanel" className="space-y-4">
-          {project.activities.length ? project.activities.map((activity) => <article key={activity.id} className="rounded-md border border-border p-4">
-            <h3 className="font-semibold">{activity.name}</h3>
-            {activity.description && <p className="mt-2 text-sm text-muted-foreground">{activity.description}</p>}
-            {activity.justification && <p className="mt-2 text-sm text-muted-foreground"><strong>Justificativa:</strong> {activity.justification}</p>}
-            <div className="mt-4 grid gap-4 md:grid-cols-2">
-              <div><h4 className="mb-2 text-sm font-medium">Localizações</h4>
-                {activity.activityLocations.length ? <ul className="list-inside list-disc text-sm text-muted-foreground">{activity.activityLocations.map(({ location }) => <li key={location.id}>{location.country || "—"} · {location.ecosystem || "—"} · {location.extent ?? 0} ha</li>)}</ul> : <p className="text-sm text-muted-foreground">Nenhuma localização vinculada.</p>}
-              </div>
-              <div><h4 className="mb-2 text-sm font-medium">Indicadores</h4><IndicatorList indicators={activity.indicators ?? []} /></div>
-            </div>
-          </article>) : <p className="text-sm text-muted-foreground">Nenhuma atividade cadastrada.</p>}
-        </div>}
-
-        {selected === "locations" && <div role="tabpanel" className="overflow-x-auto">
-          {project.locations.length ? <table className="w-full text-left text-sm">
-            <thead className="text-muted-foreground"><tr><th className="py-2 pr-4">País</th><th className="py-2 pr-4">Ecossistema</th><th className="py-2">Área</th></tr></thead>
-            <tbody>{project.locations.map((location) => <tr key={location.id} className="border-t border-border/50">
-              <td className="py-3 pr-4">{location.country || "—"}</td><td className="py-3 pr-4">{location.ecosystem || "—"}</td><td className="py-3">{location.extent ?? "—"} ha</td>
-            </tr>)}</tbody>
-          </table> : <p className="text-sm text-muted-foreground">Nenhuma localização cadastrada.</p>}
-        </div>}
-
-        {selected === "indicators" && <div role="tabpanel"><IndicatorList indicators={indicators} /></div>}
-
-        {selected === "observations" && <div role="tabpanel">
-          {projectObservations.length ? (
-            <ul className="divide-y divide-border">
-              {projectObservations.map((observation) => <li key={observation.id} className="py-3">
-                <strong>{observation.indicator?.name ?? "Indicador"}</strong>
+        <div className="max-h-[60vh] overflow-auto overscroll-contain pr-1">
+          {selected === "activities" && (
+            <div role="tabpanel" className="space-y-4">
+              {project.activities.length ? (
+                project.activities.map((activity) => (
+                  <article
+                    key={activity.id}
+                    className="rounded-md border border-border p-4"
+                  >
+                    <h3 className="font-semibold">{activity.name}</h3>
+                    {activity.description && (
+                      <p className="mt-2 text-sm text-muted-foreground">
+                        {activity.description}
+                      </p>
+                    )}
+                    {activity.justification && (
+                      <p className="mt-2 text-sm text-muted-foreground">
+                        <strong className="text-foreground">
+                          Justificativa:
+                        </strong>{" "}
+                        {activity.justification}
+                      </p>
+                    )}
+                    <div className="mt-4 grid gap-4 md:grid-cols-2">
+                      <div>
+                        <h4 className="mb-2 text-sm font-medium">
+                          Localizações
+                        </h4>
+                        {activity.activityLocations.length ? (
+                          <ul className="list-inside list-disc text-sm text-muted-foreground">
+                            {activity.activityLocations.map(({ location }) => (
+                              <li key={location.id}>
+                                {location.country || "—"} ·{" "}
+                                {location.ecosystem || "—"} ·{" "}
+                                {location.extent ?? "—"} ha
+                              </li>
+                            ))}
+                          </ul>
+                        ) : (
+                          <p className="text-sm text-muted-foreground">
+                            Nenhuma localização vinculada.
+                          </p>
+                        )}
+                      </div>
+                      <div>
+                        <h4 className="mb-2 text-sm font-medium">
+                          Indicadores
+                        </h4>
+                        <IndicatorList
+                          indicators={activity.indicators ?? []}
+                          activityNames={activityNames}
+                        />
+                      </div>
+                    </div>
+                  </article>
+                ))
+              ) : (
                 <p className="text-sm text-muted-foreground">
-                  {observation.value}{observation.indicator?.unit ? ` ${observation.indicator.unit}` : ""}
-                  {" · "}
-                  {formatDate(observation.date)}
+                  Nenhuma atividade cadastrada.
                 </p>
-              </li>)}
-            </ul>
-          ) : <p className="text-sm text-muted-foreground">Nenhuma observação cadastrada para os indicadores deste projeto.</p>}
-        </div>}
+              )}
+            </div>
+          )}
+
+          {selected === "locations" && (
+            <div role="tabpanel" className="overflow-x-auto">
+              {project.locations.length ? (
+                <table className="w-full text-left text-sm">
+                  <thead className="text-muted-foreground">
+                    <tr>
+                      <th className="py-2 pr-4">País</th>
+                      <th className="py-2 pr-4">Ecossistema</th>
+                      <th className="py-2">Área</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {project.locations.map((location) => (
+                      <tr
+                        key={location.id}
+                        className="border-t border-border/50"
+                      >
+                        <td className="py-3 pr-4">{location.country || "—"}</td>
+                        <td className="py-3 pr-4">
+                          {location.ecosystem || "—"}
+                        </td>
+                        <td className="py-3">{location.extent ?? "—"} ha</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  Nenhuma localização cadastrada.
+                </p>
+              )}
+            </div>
+          )}
+
+          {selected === "indicators" && (
+            <div role="tabpanel">
+              <IndicatorList
+                indicators={indicators}
+                activityNames={activityNames}
+              />
+            </div>
+          )}
+
+          {selected === "observations" && (
+            <div role="tabpanel">
+              {selectedActivityObservations.length ? (
+                <ul className="divide-y divide-border">
+                  {selectedActivityObservations.map((observation) => {
+                    const indicator = indicatorById.get(
+                      observation.indicatorId,
+                    );
+                    const color =
+                      colorsByIndicator.get(observation.indicatorId) ??
+                      "var(--primary)";
+                    return (
+                      <li
+                        key={observation.id}
+                        className="border-l-2 py-3 pl-3"
+                        style={{ borderLeftColor: color }}
+                      >
+                        <div className="flex items-center gap-2">
+                          <span
+                            aria-hidden="true"
+                            className="size-2.5 rounded-full"
+                            style={{ backgroundColor: color }}
+                          />
+                          <strong>
+                            {indicator?.name ??
+                              observation.indicator?.name ??
+                              "Indicador"}
+                          </strong>
+                        </div>
+                        <p className="mt-1 text-sm text-muted-foreground">
+                          {observation.value}
+                          {indicator?.unit || observation.indicator?.unit
+                            ? ` ${indicator?.unit ?? observation.indicator?.unit}`
+                            : ""}
+                          {" · "}
+                          {formatDate(observation.date)}
+                        </p>
+                      </li>
+                    );
+                  })}
+                </ul>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  {selectedActivity
+                    ? "Nenhuma observação cadastrada para esta atividade."
+                    : "Selecione uma atividade para ver as observações."}
+                </p>
+              )}
+            </div>
+          )}
+        </div>
       </section>
     </article>
   );
