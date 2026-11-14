@@ -44,7 +44,11 @@ export function requiredFormString(formData: FormData, key: string) {
 }
 
 export function requireUuid(value: string, field: string) {
-  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value)) {
+  if (
+    !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+      value,
+    )
+  ) {
     throw new Error(`O identificador de ${field} é inválido.`);
   }
   return value;
@@ -84,7 +88,7 @@ export interface Sdg {
   id: string;
   name: string;
   number: number;
-  iconUrl: string;
+  iconUrl: string | null;
 }
 
 export interface Location {
@@ -137,8 +141,21 @@ export interface Project {
   proponent?: Organization;
   locations: Location[];
   activities: Activity[];
-  projectProponents: Array<{ id: string; projectId: string; proponentId: string; role: string }>;
+  projectProponents: Array<{
+    id: string;
+    projectId: string;
+    proponentId: string;
+    role: string;
+  }>;
   projectSdgs: Array<{ sdg: Sdg }>;
+}
+
+export interface ProjectSummary {
+  id: string;
+  name: string;
+  lifetimeStart: string | null;
+  lifetimeEnd: string | null;
+  locations: Array<{ ecosystem: string | null }>;
 }
 
 export interface CreateOrganizationInput {
@@ -231,9 +248,15 @@ async function request<T>(
 
     try {
       const payload: unknown = JSON.parse(body);
-      if (typeof payload === "object" && payload !== null && "message" in payload) {
+      if (
+        typeof payload === "object" &&
+        payload !== null &&
+        "message" in payload
+      ) {
         const apiMessage = payload.message;
-        message = Array.isArray(apiMessage) ? apiMessage.join(" ") : String(apiMessage);
+        message = Array.isArray(apiMessage)
+          ? apiMessage.join(" ")
+          : String(apiMessage);
       }
     } catch {
       // Error responses can be plain text.
@@ -251,9 +274,30 @@ export function jsonBody(value: unknown) {
   return JSON.stringify(value);
 }
 
-function pagination(limit = 100, offset = 0) {
-  const params = new URLSearchParams({ limit: String(limit), offset: String(offset) });
-  return params.toString();
+async function listAllPages<T>(
+  path: string,
+  token: string,
+  limit = 100,
+  offset = 0,
+  filters?: URLSearchParams,
+): Promise<T[]> {
+  const pageSize = Math.min(limit, 100);
+  if (!Number.isInteger(pageSize) || pageSize < 1) {
+    throw new RangeError("O limite da página deve estar entre 1 e 100.");
+  }
+
+  let pageOffset = offset;
+  const items: T[] = [];
+
+  while (true) {
+    const params = new URLSearchParams(filters);
+    params.set("limit", String(pageSize));
+    params.set("offset", String(pageOffset));
+    const page = await request<T[]>(`${path}?${params.toString()}`, token);
+    items.push(...page);
+    if (page.length < pageSize) return items;
+    pageOffset += page.length;
+  }
 }
 
 export function apiRequest<T>(
@@ -285,10 +329,13 @@ export function registerAuthUser(input: {
 }
 
 export function listOrganizations(token: string, limit = 100, offset = 0) {
-  return request<Organization[]>(`organizations?${pagination(limit, offset)}`, token);
+  return listAllPages<Organization>("organizations", token, limit, offset);
 }
 
-export function createOrganization(input: CreateOrganizationInput, token: string) {
+export function createOrganization(
+  input: CreateOrganizationInput,
+  token: string,
+) {
   return request<Organization>("organizations/create", token, {
     method: "POST",
     body: jsonBody(input),
@@ -300,20 +347,28 @@ export function updateOrganization(
   input: Partial<CreateOrganizationInput>,
   token: string,
 ) {
-  return request<Organization>(`organizations/update/${encodeURIComponent(id)}`, token, {
-    method: "PATCH",
-    body: jsonBody(input),
-  });
+  return request<Organization>(
+    `organizations/update/${encodeURIComponent(id)}`,
+    token,
+    {
+      method: "PATCH",
+      body: jsonBody(input),
+    },
+  );
 }
 
 export function deleteOrganization(id: string, token: string) {
-  return request<boolean>(`organizations/delete/${encodeURIComponent(id)}`, token, {
-    method: "DELETE",
-  });
+  return request<boolean>(
+    `organizations/delete/${encodeURIComponent(id)}`,
+    token,
+    {
+      method: "DELETE",
+    },
+  );
 }
 
 export function listUsers(token: string, limit = 100, offset = 0) {
-  return request<User[]>(`user?${pagination(limit, offset)}`, token);
+  return listAllPages<User>("user", token, limit, offset);
 }
 
 export function createUser(input: CreateUserInput, token: string) {
@@ -323,7 +378,11 @@ export function createUser(input: CreateUserInput, token: string) {
   });
 }
 
-export function updateUser(id: string, input: Partial<CreateUserInput>, token: string) {
+export function updateUser(
+  id: string,
+  input: Partial<CreateUserInput>,
+  token: string,
+) {
   return request<User>(`user/update/${encodeURIComponent(id)}`, token, {
     method: "PATCH",
     body: jsonBody(input),
@@ -337,7 +396,7 @@ export function deleteUser(id: string, token: string) {
 }
 
 export function listSdgs(token: string, limit = 100, offset = 0) {
-  return request<Sdg[]>(`sdg?${pagination(limit, offset)}`, token);
+  return listAllPages<Sdg>("sdg", token, limit, offset);
 }
 
 export function createSdg(input: CreateSdgInput, token: string) {
@@ -351,7 +410,11 @@ export function getSdg(id: string, token: string) {
   return request<Sdg>(`sdg/${encodeURIComponent(id)}`, token);
 }
 
-export function updateSdg(id: string, input: Partial<CreateSdgInput>, token: string) {
+export function updateSdg(
+  id: string,
+  input: Partial<CreateSdgInput>,
+  token: string,
+) {
   return request<Sdg>(`sdg/${encodeURIComponent(id)}`, token, {
     method: "PATCH",
     body: jsonBody(input),
@@ -365,7 +428,7 @@ export function deleteSdg(id: string, token: string) {
 }
 
 export function listProjects(token: string, limit = 100, offset = 0) {
-  return request<Project[]>(`project?${pagination(limit, offset)}`, token);
+  return listAllPages<ProjectSummary>("project", token, limit, offset);
 }
 
 export function getProject(id: string, token: string) {
@@ -379,7 +442,11 @@ export function createProject(input: CreateProjectInput, token: string) {
   });
 }
 
-export function updateProject(id: string, input: Partial<CreateProjectInput>, token: string) {
+export function updateProject(
+  id: string,
+  input: Partial<CreateProjectInput>,
+  token: string,
+) {
   return request<Project>(`project/update/${encodeURIComponent(id)}`, token, {
     method: "PUT",
     body: jsonBody(input),
@@ -397,13 +464,21 @@ export function addProjectProponents(
   proponents: Array<{ proponentId: string; role: string }>,
   token: string,
 ) {
-  return request<boolean>(`project/${encodeURIComponent(projectId)}/add_proponent`, token, {
-    method: "POST",
-    body: jsonBody(proponents),
-  });
+  return request<boolean>(
+    `project/${encodeURIComponent(projectId)}/add_proponent`,
+    token,
+    {
+      method: "POST",
+      body: jsonBody(proponents),
+    },
+  );
 }
 
-export function removeProjectProponent(projectId: string, proponentId: string, token: string) {
+export function removeProjectProponent(
+  projectId: string,
+  proponentId: string,
+  token: string,
+) {
   return request<boolean>(
     `project/${encodeURIComponent(projectId)}/remove_proponent/${encodeURIComponent(proponentId)}`,
     token,
@@ -468,14 +543,34 @@ export function deleteActivity(id: string, token: string) {
 }
 
 export function listIndicators(token: string, limit = 100, offset = 0) {
-  return request<Indicator[]>(`indicator?${pagination(limit, offset)}`, token);
+  return listAllPages<Indicator>("indicator", token, limit, offset);
 }
 
-export function listObservations(token: string, limit = 100, offset = 0) {
-  return request<Observation[]>(`observation?${pagination(limit, offset)}`, token);
+export function listObservations(
+  token: string,
+  limit = 100,
+  offset = 0,
+  projectId?: string,
+) {
+  const filters = new URLSearchParams();
+  if (projectId) filters.set("projectId", projectId);
+  return listAllPages<Observation>(
+    "observation",
+    token,
+    limit,
+    offset,
+    filters,
+  );
 }
 
-export function createObservations(input: CreateObservationInput[], token: string) {
+export function listProjectObservations(token: string, projectId: string) {
+  return listObservations(token, 100, 0, projectId);
+}
+
+export function createObservations(
+  input: CreateObservationInput[],
+  token: string,
+) {
   return request<string[]>("observation/create", token, {
     method: "POST",
     body: jsonBody(input),
@@ -487,16 +582,24 @@ export function updateObservation(
   input: Partial<CreateObservationInput>,
   token: string,
 ) {
-  return request<Observation>(`observation/update/${encodeURIComponent(id)}`, token, {
-    method: "PATCH",
-    body: jsonBody(input),
-  });
+  return request<Observation>(
+    `observation/update/${encodeURIComponent(id)}`,
+    token,
+    {
+      method: "PATCH",
+      body: jsonBody(input),
+    },
+  );
 }
 
 export function deleteObservation(id: string, token: string) {
-  return request<boolean>(`observation/delete/${encodeURIComponent(id)}`, token, {
-    method: "DELETE",
-  });
+  return request<boolean>(
+    `observation/delete/${encodeURIComponent(id)}`,
+    token,
+    {
+      method: "DELETE",
+    },
+  );
 }
 
 export function createIndicators(input: CreateIndicatorInput[], token: string) {
@@ -515,10 +618,14 @@ export function updateIndicator(
   input: Partial<CreateIndicatorInput>,
   token: string,
 ) {
-  return request<Indicator>(`indicator/update/${encodeURIComponent(id)}`, token, {
-    method: "PUT",
-    body: jsonBody(input),
-  });
+  return request<Indicator>(
+    `indicator/update/${encodeURIComponent(id)}`,
+    token,
+    {
+      method: "PUT",
+      body: jsonBody(input),
+    },
+  );
 }
 
 export function deleteIndicator(id: string, token: string) {
@@ -526,3 +633,4 @@ export function deleteIndicator(id: string, token: string) {
     method: "DELETE",
   });
 }
+ 

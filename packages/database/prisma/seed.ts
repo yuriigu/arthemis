@@ -74,28 +74,89 @@ async function seed() {
 
   const sdgs = await Promise.all([
     prisma.sdg.upsert({
+      where: { number: 1 },
+      create: { number: 1, name: "Erradicação da Pobreza" },
+      update: { name: "Erradicação da Pobreza" },
+    }),
+    prisma.sdg.upsert({
+      where: { number: 2 },
+      create: { number: 2, name: "Fome Zero e Agricultura Sustentável" },
+      update: { name: "Fome Zero e Agricultura Sustentável" },
+    }),
+    prisma.sdg.upsert({
+      where: { number: 3 },
+      create: { number: 3, name: "Saúde e Bem-Estar" },
+      update: { name: "Saúde e Bem-Estar" },
+    }),
+    prisma.sdg.upsert({
+      where: { number: 4 },
+      create: { number: 4, name: "Educação de Qualidade" },
+      update: { name: "Educação de Qualidade" },
+    }),
+    prisma.sdg.upsert({
+      where: { number: 5 },
+      create: { number: 5, name: "Igualdade de Gênero" },
+      update: { name: "Igualdade de Gênero" },
+    }),
+    prisma.sdg.upsert({
       where: { number: 6 },
-      create: {
-        number: 6,
-        name: "Água potável e saneamento",
-      },
-      update: { name: "Água potável e saneamento" },
+      create: { number: 6, name: "Água Potável e Saneamento" },
+      update: { name: "Água Potável e Saneamento" },
+    }),
+    prisma.sdg.upsert({
+      where: { number: 7 },
+      create: { number: 7, name: "Energia Limpa e Acessível" },
+      update: { name: "Energia Limpa e Acessível" },
+    }),
+    prisma.sdg.upsert({
+      where: { number: 8 },
+      create: { number: 8, name: "Trabalho Decente e Crescimento Econômico" },
+      update: { name: "Trabalho Decente e Crescimento Econômico" },
+    }),
+    prisma.sdg.upsert({
+      where: { number: 9 },
+      create: { number: 9, name: "Indústria, Inovação e Infraestrutura" },
+      update: { name: "Indústria, Inovação e Infraestrutura" },
+    }),
+    prisma.sdg.upsert({
+      where: { number: 10 },
+      create: { number: 10, name: "Redução das Desigualdades" },
+      update: { name: "Redução das Desigualdades" },
+    }),
+    prisma.sdg.upsert({
+      where: { number: 11 },
+      create: { number: 11, name: "Cidades e Comunidades Sustentáveis" },
+      update: { name: "Cidades e Comunidades Sustentáveis" },
+    }),
+    prisma.sdg.upsert({
+      where: { number: 12 },
+      create: { number: 12, name: "Consumo e Produção Responsáveis" },
+      update: { name: "Consumo e Produção Responsáveis" },
     }),
     prisma.sdg.upsert({
       where: { number: 13 },
-      create: {
-        number: 13,
-        name: "Ação contra a mudança global do clima",
-      },
-      update: { name: "Ação contra a mudança global do clima" },
+      create: { number: 13, name: "Ação Contra a Mudança Global do Clima" },
+      update: { name: "Ação Contra a Mudança Global do Clima" },
     }),
     prisma.sdg.upsert({
       where: { number: 14 },
-      create: {
-        number: 14,
-        name: "Vida na água",
-      },
-      update: { name: "Vida na água" },
+      create: { number: 14, name: "Vida na Água" },
+      update: { name: "Vida na Água" },
+    }),
+    prisma.sdg.upsert({
+      where: { number: 15 },
+      create: { number: 15, name: "Vida Terrestre" },
+      update: { name: "Vida Terrestre" },
+    }),
+    prisma.sdg.upsert({
+      where: { number: 16 },
+      create: { number: 16, name: "Paz, Justiça e Instituições Eficazes" },
+      update: { name: "Paz, Justiça e Instituições Eficazes" },
+    }),
+    prisma.sdg.upsert({
+      where: { number: 17 },
+      create: { number: 17, name: "Parcerias e Meios de Implementação" },
+      update: { name: "Parcerias e Meios de Implementação" },
     }),
   ]);
 
@@ -317,3 +378,4 @@ seed()
   .finally(async () => {
     await prisma.$disconnect();
   });
+ 

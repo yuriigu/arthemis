@@ -1,7 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import {
@@ -14,7 +21,7 @@ import {
 
 export interface LineChartDataPoint {
   date: Date;
-  [key: string]: Date | number;
+  [key: string]: Date | number | null;
 }
 export interface LineChartSeries {
   key: string;
@@ -33,6 +40,7 @@ export interface LineChartProps {
   onPeriodChange?: (period: string) => void;
   className?: string;
   dotted?: boolean;
+  dateFormat?: "month" | "day";
 }
 export interface PieChartSlice {
   label: string;
@@ -50,17 +58,36 @@ export interface PieChartProps {
   className?: string;
 }
 export type ChartConfig = Record<string, { label?: string; color?: string }>;
-export function ChartContainer({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
+export function ChartContainer({
+  className,
+  ...props
+}: React.HTMLAttributes<HTMLDivElement>) {
   return <div className={cn("w-full", className)} {...props} />;
 }
-export function ChartTooltip({ children, className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
-  return <div role="tooltip" className={cn("rounded-md border bg-card p-2 text-sm shadow", className)} {...props}>{children}</div>;
+export function ChartTooltip({
+  children,
+  className,
+  ...props
+}: React.HTMLAttributes<HTMLDivElement>) {
+  return (
+    <div
+      role="tooltip"
+      className={cn("rounded-md border bg-card p-2 text-sm shadow", className)}
+      {...props}
+    >
+      {children}
+    </div>
+  );
 }
 export const ChartStyle = () => null;
 export { ChartContainer as Container, ChartTooltip as Tooltip };
 
+function formatChartValue(value: number) {
+  return value.toLocaleString("pt-BR");
+}
+
 function formatProjectCount(count: number) {
-  return `${count} ${count === 1 ? "projeto" : "projetos"}`;
+  return `${formatChartValue(count)} ${count === 1 ? "projeto" : "projetos"}`;
 }
 
 export function LineChart({
@@ -75,6 +102,7 @@ export function LineChart({
   onPeriodChange,
   className,
   dotted = false,
+  dateFormat = "month",
 }: LineChartProps) {
   const [hoveredPoint, setHoveredPoint] = useState<{
     index: number;
@@ -85,13 +113,19 @@ export function LineChart({
   const ticks = getIntegerTicks(max, step).reverse(); // Top (max) to bottom (0)
 
   const years = new Set(data.map((row) => row.date.getUTCFullYear()));
-  const includeYearInAxis = years.size > 1 || data.length > 12 || data.length === 1;
+  const includeYearInAxis =
+    years.size > 1 || data.length > 12 || data.length === 1;
   const labelStep = data.length > 12 ? Math.ceil(data.length / 8) : 1;
 
-  const getPointCoords = (row: LineChartDataPoint, index: number, key: string) => {
+  const getPointCoords = (
+    row: LineChartDataPoint,
+    index: number,
+    key: string,
+  ) => {
+    const rawValue = row[key];
+    if (typeof rawValue !== "number" || !Number.isFinite(rawValue)) return null;
     const x = data.length <= 1 ? 50 : 4 + (index / (data.length - 1)) * 92;
-    const rawValue = Number(row[key]);
-    const value = Number.isFinite(rawValue) ? Math.max(0, rawValue) : 0;
+    const value = Math.max(0, rawValue);
     const y = 92 - ((value - min) / (max - min || 1)) * 84;
     return { x, y, value };
   };
@@ -104,14 +138,18 @@ export function LineChart({
   const activePointInfo = (() => {
     if (hoveredPoint === null || !data[hoveredPoint.index]) return null;
     const row = data[hoveredPoint.index];
-    const x = data.length <= 1 ? 50 : 4 + (hoveredPoint.index / (data.length - 1)) * 92;
-    const items = series.map((s) => {
+    const x =
+      data.length <= 1 ? 50 : 4 + (hoveredPoint.index / (data.length - 1)) * 92;
+    const items = series.flatMap((s) => {
       const coord = getPointCoords(row, hoveredPoint.index, s.key);
-      return { ...s, ...coord };
+      return coord ? [{ ...s, ...coord }] : [];
     });
     const focused = hoveredPoint.seriesKey
-      ? items.find((item) => item.key === hoveredPoint.seriesKey) ?? items[0]
-      : items.reduce((highest, item) => (item.y < highest.y ? item : highest), items[0]);
+      ? (items.find((item) => item.key === hoveredPoint.seriesKey) ?? items[0])
+      : items.reduce(
+          (highest, item) => (item.y < highest.y ? item : highest),
+          items[0],
+        );
     return {
       index: hoveredPoint.index,
       date: row.date,
@@ -128,12 +166,17 @@ export function LineChart({
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <CardTitle>{title}</CardTitle>
-            {description && <CardDescription className="mt-1">{description}</CardDescription>}
+            {description && (
+              <CardDescription className="mt-1">{description}</CardDescription>
+            )}
           </div>
           <div className="flex flex-wrap items-center gap-4">
             <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
               {series.map((item) => (
-                <span key={item.key} className="flex items-center gap-2 text-sm font-medium">
+                <span
+                  key={item.key}
+                  className="flex items-center gap-2 text-sm font-medium"
+                >
                   <span
                     className="size-3 rounded-full shadow-xs"
                     style={{ backgroundColor: item.color }}
@@ -159,7 +202,8 @@ export function LineChart({
                       aria-pressed={isSelected}
                       className={cn(
                         "h-7 px-2.5 text-xs font-semibold transition-all",
-                        !isSelected && "text-muted-foreground hover:text-foreground",
+                        !isSelected &&
+                          "text-muted-foreground hover:text-foreground",
                       )}
                       onClick={() => onPeriodChange(period)}
                     >
@@ -223,7 +267,14 @@ export function LineChart({
                   className="pointer-events-none absolute inset-0 h-full w-full overflow-visible"
                 >
                   {seriesPoints.map((item) => {
-                    const pathData = buildSmoothLinePath(item.coords);
+                    const points = item.coords.filter(
+                      (point): point is NonNullable<typeof point> =>
+                        point !== null,
+                    );
+                    const pathData =
+                      dateFormat === "day" && points.length < 2
+                        ? ""
+                        : buildSmoothLinePath(points);
                     return (
                       <path
                         key={item.key}
@@ -233,7 +284,9 @@ export function LineChart({
                         strokeWidth="2.5"
                         strokeLinecap="round"
                         strokeLinejoin="round"
-                        strokeDasharray={dotted || data.length === 1 ? "4 3" : undefined}
+                        strokeDasharray={
+                          dotted || data.length === 1 ? "4 3" : undefined
+                        }
                         vectorEffect="non-scaling-stroke"
                       />
                     );
@@ -252,22 +305,30 @@ export function LineChart({
                 {/* Marcadores circulares nos pontos */}
                 {seriesPoints.map((serie, serieIdx) =>
                   serie.coords.map((point, index) => {
+                    if (!point) return null;
                     const isHovered =
                       hoveredPoint?.index === index &&
-                      (!hoveredPoint.seriesKey || hoveredPoint.seriesKey === serie.key);
+                      (!hoveredPoint.seriesKey ||
+                        hoveredPoint.seriesKey === serie.key);
 
                     // Verifica se outra série anterior tem exatamente o mesmo valor neste mês
                     const hasOverlap = seriesPoints
                       .slice(0, serieIdx)
-                      .some((prev) => prev.coords[index]?.value === point.value);
+                      .some(
+                        (prev) => prev.coords[index]?.value === point.value,
+                      );
 
                     return (
                       <button
                         key={`${serie.key}-${index}`}
                         type="button"
-                        aria-label={`${formatTooltipMonth(data[index].date)} - ${serie.label}: ${formatProjectCount(point.value)}`}
-                        onMouseEnter={() => setHoveredPoint({ index, seriesKey: serie.key })}
-                        onFocus={() => setHoveredPoint({ index, seriesKey: serie.key })}
+                        aria-label={`${data[index].date.toLocaleDateString("pt-BR", { timeZone: "UTC" })} - ${serie.label}: ${formatChartValue(point.value)}`}
+                        onMouseEnter={() =>
+                          setHoveredPoint({ index, seriesKey: serie.key })
+                        }
+                        onFocus={() =>
+                          setHoveredPoint({ index, seriesKey: serie.key })
+                        }
                         onBlur={() => setHoveredPoint(null)}
                         className={cn(
                           "group absolute -translate-x-1/2 -translate-y-1/2 rounded-full p-1.5 focus:outline-none",
@@ -280,7 +341,7 @@ export function LineChart({
                       >
                         <span
                           className={cn(
-                            "block rounded-full border-2 border-white shadow-sm transition-transform duration-150 dark:border-sage-green-50",
+                            "block rounded-full border-2 border-background shadow-sm transition-transform duration-150",
                             hasOverlap ? "size-2.5" : "size-3",
                             isHovered && "scale-125 ring-4 ring-foreground/15",
                           )}
@@ -301,9 +362,16 @@ export function LineChart({
                       top: `${Math.max(14, activePointInfo.y)}%`,
                     }}
                   >
-                    <div className="relative min-w-44 rounded-lg border border-sage-green-200 bg-white px-3.5 py-2 text-xs text-slate-900 shadow-lg">
-                      <p className="mb-1! font-semibold text-slate-700">
-                        {formatTooltipMonth(activePointInfo.date)}
+                    <div className="relative min-w-44 rounded-lg border border-border bg-popover px-3.5 py-2 text-xs text-popover-foreground shadow-lg">
+                      <p className="mb-1! font-semibold text-foreground">
+                        {dateFormat === "day"
+                          ? activePointInfo.date.toLocaleDateString("pt-BR", {
+                              day: "numeric",
+                              month: "long",
+                              year: "numeric",
+                              timeZone: "UTC",
+                            })
+                          : formatTooltipMonth(activePointInfo.date)}
                       </p>
                       <div className="space-y-1">
                         {activePointInfo.items.map((item) => (
@@ -311,22 +379,22 @@ export function LineChart({
                             key={item.key}
                             className="flex items-center justify-between gap-3"
                           >
-                            <span className="flex items-center gap-1.5 text-slate-600">
+                            <span className="flex items-center gap-1.5 text-muted-foreground">
                               <span
                                 className="size-2 rounded-full"
                                 style={{ backgroundColor: item.color }}
                               />
                               {item.label}:
                             </span>
-                            <strong className="font-semibold tabular-nums text-slate-900">
-                              {formatProjectCount(item.value)}
+                            <strong className="font-semibold tabular-nums text-foreground">
+                              {formatChartValue(item.value)}
                             </strong>
                           </div>
                         ))}
                       </div>
                       <span
                         aria-hidden="true"
-                        className="absolute top-full left-1/2 -translate-x-1/2 border-x-[6px] border-t-[6px] border-x-transparent border-t-white"
+                        className="absolute top-full left-1/2 -translate-x-1/2 border-x-[6px] border-t-[6px] border-x-transparent border-t-popover"
                       />
                     </div>
                   </div>
@@ -345,18 +413,33 @@ export function LineChart({
                     data.length <= 12 ||
                     isFirst ||
                     isLast ||
-                    (index % labelStep === 0 && data.length - 1 - index >= Math.floor(labelStep / 2));
+                    (index % labelStep === 0 &&
+                      data.length - 1 - index >= Math.floor(labelStep / 2));
 
                   if (!shouldShow) return null;
 
-                  const x = data.length <= 1 ? 50 : 4 + (index / (data.length - 1)) * 92;
+                  const x =
+                    data.length <= 1
+                      ? 50
+                      : 4 + (index / (data.length - 1)) * 92;
                   return (
                     <span
                       key={row.date.toISOString()}
                       className="absolute top-1 -translate-x-1/2 whitespace-nowrap uppercase"
                       style={{ left: `${x}%` }}
                     >
-                      {formatChartDate(row.date, "pt-BR", includeYearInAxis)}
+                      {dateFormat === "day"
+                        ? row.date
+                            .toLocaleDateString("pt-BR", {
+                              day: "2-digit",
+                              month: "short",
+                              ...(includeYearInAxis
+                                ? { year: "2-digit" as const }
+                                : {}),
+                              timeZone: "UTC",
+                            })
+                            .replace(/\.$/, "")
+                        : formatChartDate(row.date, "pt-BR", includeYearInAxis)}
                     </span>
                   );
                 })}
@@ -366,7 +449,7 @@ export function LineChart({
         ) : (
           <div className="grid h-64 place-items-center rounded-lg border border-dashed border-border/60 p-6 text-center">
             <p className="mb-0! text-sm text-muted-foreground">
-              Nenhum projeto cadastrado para exibir o histórico mensal.
+              Nenhum dado disponível para exibir o histórico.
             </p>
           </div>
         )}
@@ -375,18 +458,37 @@ export function LineChart({
       {(footerTitle || footerDescription) && (
         <CardFooter className="flex-col items-start gap-1 text-sm">
           {footerTitle && <strong>{footerTitle} ↗</strong>}
-          {footerDescription && <span className="text-muted-foreground">{footerDescription}</span>}
+          {footerDescription && (
+            <span className="text-muted-foreground">{footerDescription}</span>
+          )}
         </CardFooter>
       )}
     </Card>
   );
 }
 
-function donutArcPath(start: number, end: number, outerRadius: number, innerRadius: number) {
-  const outerStart = [50 + outerRadius * Math.cos(start), 50 + outerRadius * Math.sin(start)];
-  const outerEnd = [50 + outerRadius * Math.cos(end), 50 + outerRadius * Math.sin(end)];
-  const innerEnd = [50 + innerRadius * Math.cos(end), 50 + innerRadius * Math.sin(end)];
-  const innerStart = [50 + innerRadius * Math.cos(start), 50 + innerRadius * Math.sin(start)];
+function donutArcPath(
+  start: number,
+  end: number,
+  outerRadius: number,
+  innerRadius: number,
+) {
+  const outerStart = [
+    50 + outerRadius * Math.cos(start),
+    50 + outerRadius * Math.sin(start),
+  ];
+  const outerEnd = [
+    50 + outerRadius * Math.cos(end),
+    50 + outerRadius * Math.sin(end),
+  ];
+  const innerEnd = [
+    50 + innerRadius * Math.cos(end),
+    50 + innerRadius * Math.sin(end),
+  ];
+  const innerStart = [
+    50 + innerRadius * Math.cos(start),
+    50 + innerRadius * Math.sin(start),
+  ];
   const largeArc = end - start > Math.PI ? 1 : 0;
 
   return [
@@ -453,16 +555,20 @@ export function PieChart({
     ).items;
 
   const hoveredSlice = hoveredLabel
-    ? sanitizedSlices.find((s) => s.label === hoveredLabel) ?? null
+    ? (sanitizedSlices.find((s) => s.label === hoveredLabel) ?? null)
     : null;
   const hoveredPercentage =
-    hoveredSlice && total > 0 ? Math.round((hoveredSlice.value / total) * 100) : 0;
+    hoveredSlice && total > 0
+      ? Math.round((hoveredSlice.value / total) * 100)
+      : 0;
 
   return (
     <Card className={cn("flex flex-col", className)}>
       <CardHeader className="pb-2">
         <CardTitle>{title}</CardTitle>
-        {description && <CardDescription className="mt-1">{description}</CardDescription>}
+        {description && (
+          <CardDescription className="mt-1">{description}</CardDescription>
+        )}
       </CardHeader>
 
       <CardContent className="flex flex-1 flex-col justify-between gap-6 pt-2">
@@ -542,14 +648,17 @@ export function PieChart({
                     role="tooltip"
                     className="pointer-events-none absolute -top-2 left-1/2 z-20 -translate-x-1/2 -translate-y-full"
                   >
-                    <div className="relative rounded-lg border border-sage-green-200 bg-white px-3 py-1.5 text-xs text-slate-900 shadow-lg whitespace-nowrap">
-                      <div className="font-bold tabular-nums">{hoveredPercentage}%</div>
-                      <div className="text-[11px] text-slate-600">
-                        {formatProjectCount(hoveredSlice.value)} · {hoveredSlice.label}
+                    <div className="relative rounded-lg border border-border bg-popover px-3 py-1.5 text-xs text-popover-foreground shadow-lg whitespace-nowrap">
+                      <div className="font-bold tabular-nums">
+                        {hoveredPercentage}%
+                      </div>
+                      <div className="text-[11px] text-muted-foreground">
+                        {formatProjectCount(hoveredSlice.value)} ·{" "}
+                        {hoveredSlice.label}
                       </div>
                       <span
                         aria-hidden="true"
-                        className="absolute top-full left-1/2 -translate-x-1/2 border-x-[5px] border-t-[5px] border-x-transparent border-t-white"
+                        className="absolute top-full left-1/2 -translate-x-1/2 border-x-[5px] border-t-[5px] border-x-transparent border-t-popover"
                       />
                     </div>
                   </div>
@@ -559,7 +668,8 @@ export function PieChart({
               {/* Lista lateral com cores, quantidades e porcentagens */}
               <div className="space-y-3">
                 {sanitizedSlices.map((slice) => {
-                  const pct = total > 0 ? Math.round((slice.value / total) * 100) : 0;
+                  const pct =
+                    total > 0 ? Math.round((slice.value / total) * 100) : 0;
                   const isHovered = hoveredLabel === slice.label;
                   return (
                     <div
@@ -568,7 +678,9 @@ export function PieChart({
                       onMouseLeave={() => setHoveredLabel(null)}
                       className={cn(
                         "flex cursor-default items-center justify-between gap-3 rounded-lg border border-transparent px-3 py-2 text-sm transition-colors",
-                        isHovered ? "border-border bg-muted/50" : "hover:bg-muted/30",
+                        isHovered
+                          ? "border-border bg-muted/50"
+                          : "hover:bg-muted/30",
                       )}
                     >
                       <span className="flex items-center gap-2.5 font-medium">
@@ -624,14 +736,33 @@ export function PieChart({
       {(footerTitle || footerDescription) && (
         <CardFooter className="flex-col gap-1 text-sm">
           {footerTitle && <strong>{footerTitle} ↗</strong>}
-          {footerDescription && <span className="text-muted-foreground">{footerDescription}</span>}
+          {footerDescription && (
+            <span className="text-muted-foreground">{footerDescription}</span>
+          )}
         </CardFooter>
       )}
     </Card>
   );
 }
 
-export function MetricCard({ title, value, description, className }: { title: string; value: React.ReactNode; description?: string; className?: string }) {
-  return <Card className={className}><CardHeader><CardDescription>{title}</CardDescription><CardTitle className="text-3xl">{value}</CardTitle>{description && <CardDescription>{description}</CardDescription>}</CardHeader></Card>;
+export function MetricCard({
+  title,
+  value,
+  description,
+  className,
+}: {
+  title: string;
+  value: React.ReactNode;
+  description?: string;
+  className?: string;
+}) {
+  return (
+    <Card className={className}>
+      <CardHeader>
+        <CardDescription>{title}</CardDescription>
+        <CardTitle className="text-3xl">{value}</CardTitle>
+        {description && <CardDescription>{description}</CardDescription>}
+      </CardHeader>
+    </Card>
+  );
 }
-

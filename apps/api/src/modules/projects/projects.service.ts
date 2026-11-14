@@ -39,6 +39,9 @@ export class ProjectsService {
       skip: offset,
       include: {
         proponent: true,
+        locations: {
+          select: { ecosystem: true },
+        },
         projectSdgs: {
           include: {
             sdg: true, // Traz os dados do ODS junto com a relação
@@ -114,3 +117,4 @@ export class ProjectsService {
     return true;
   }
 }
+ 
