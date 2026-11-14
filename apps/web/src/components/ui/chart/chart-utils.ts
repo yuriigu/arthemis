@@ -1,4 +1,7 @@
-import type { LineChartDataPoint, LineChartSeries } from "@/components/ui/chart";
+import type {
+  LineChartDataPoint,
+  LineChartSeries,
+} from "@/components/ui/chart";
 
 export interface ProjectLifetimeRange {
   lifetimeStart: string | null;
@@ -10,10 +13,21 @@ export function parseEndOfDayUtc(dateString: string | null): number {
   const parsed = Date.parse(dateString);
   if (!Number.isFinite(parsed)) return Number.POSITIVE_INFINITY;
   const d = new Date(parsed);
-  return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), 23, 59, 59, 999);
+  return Date.UTC(
+    d.getUTCFullYear(),
+    d.getUTCMonth(),
+    d.getUTCDate(),
+    23,
+    59,
+    59,
+    999,
+  );
 }
 
-export function isProjectActiveAt(project: ProjectLifetimeRange, timestamp: number): boolean {
+export function isProjectActiveAt(
+  project: ProjectLifetimeRange,
+  timestamp: number,
+): boolean {
   const start = project.lifetimeStart
     ? Date.parse(project.lifetimeStart)
     : Number.NEGATIVE_INFINITY;
@@ -24,11 +38,22 @@ export function isProjectActiveAt(project: ProjectLifetimeRange, timestamp: numb
   );
 }
 
-export function getChartBounds(data: LineChartDataPoint[], series: LineChartSeries[]) {
-  const values = data.flatMap((point) => series.map(({ key }) => Number(point[key])).filter(Number.isFinite));
+export function getChartBounds(
+  data: LineChartDataPoint[],
+  series: LineChartSeries[],
+) {
+  const values = data.flatMap((point) =>
+    series.flatMap(({ key }) => {
+      const value = point[key];
+      return typeof value === "number" && Number.isFinite(value) ? [value] : [];
+    }),
+  );
   const rawMax = Math.max(0, ...values);
   const step = rawMax <= 4 ? 1 : Math.ceil(rawMax / 4);
-  const max = Math.max(3, Math.ceil((rawMax + (rawMax === 0 ? 3 : 0)) / step) * step);
+  const max = Math.max(
+    3,
+    Math.ceil((rawMax + (rawMax === 0 ? 3 : 0)) / step) * step,
+  );
   return { min: 0, max, step };
 }
 
@@ -38,7 +63,11 @@ export function getIntegerTicks(max: number, step: number): number[] {
   return Array.from({ length: count + 1 }, (_, index) => index * safeStep);
 }
 
-export function formatChartDate(value: Date, locale = "pt-BR", includeYear = false) {
+export function formatChartDate(
+  value: Date,
+  locale = "pt-BR",
+  includeYear = false,
+) {
   const month = value
     .toLocaleDateString(locale, { month: "short", timeZone: "UTC" })
     .replace(/\.$/, "")
@@ -62,7 +91,9 @@ export function formatTooltipMonth(value: Date, locale = "pt-BR") {
  * so curves look smooth like analytics charts without ever overshooting
  * or dipping below zero on flat segments.
  */
-export function buildSmoothLinePath(points: Array<{ x: number; y: number }>): string {
+export function buildSmoothLinePath(
+  points: Array<{ x: number; y: number }>,
+): string {
   if (points.length === 0) return "";
   if (points.length === 1) {
     const [{ y }] = points;
@@ -127,4 +158,3 @@ export function buildSmoothLinePath(points: Array<{ x: number; y: number }>): st
 
   return path;
 }
-

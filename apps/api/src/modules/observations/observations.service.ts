@@ -4,17 +4,20 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
-import { PaginationDto } from '../../common/dto/pagination.dto';
 import { CreateObservationDto } from './dto/create-observation.dto';
+import { FindObservationsDto } from './dto/find-observations.dto';
 import { UpdateObservationDto } from './dto/update-observation.dto';
 
 @Injectable()
 export class ObservationsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async findAll({ limit, offset }: PaginationDto) {
+  async findAll({ limit, offset, projectId }: FindObservationsDto) {
     return this.prisma.observation.findMany({
-      where: { deletedAt: null },
+      where: {
+        deletedAt: null,
+        ...(projectId ? { indicator: { activity: { projectId } } } : {}),
+      },
       take: limit,
       skip: offset,
       orderBy: [{ date: 'desc' }, { createdAt: 'desc' }],
