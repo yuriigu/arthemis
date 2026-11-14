@@ -633,3 +633,4 @@ export function deleteIndicator(id: string, token: string) {
     method: "DELETE",
   });
 }
+ 
