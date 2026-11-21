@@ -43,6 +43,16 @@ model Proponent {
   updatedAt         DateTime           @updatedAt
 }
 
+enum ProjectStatus {
+  draft
+  listed
+  under_validation
+  validated
+  under_verification
+  verified
+  expired
+}
+
 model Project {
   id                String             @id @default(uuid())
   proponentId       String
@@ -50,6 +60,7 @@ model Project {
   name              String
   lifetimeStart     DateTime?
   lifetimeEnd       DateTime?
+  status            ProjectStatus       @default(draft)
   justification     String?
   locations         Location[]
   activities        Activity[]
