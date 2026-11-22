@@ -12,6 +12,7 @@ import { isValidGeoJSON } from "@/lib/geojson";
 import { SdgIcon } from "./sdg-icon";
 import { standardSdgs } from "./standard-sdgs";
 import { validateProject, type ProjectValidationErrors } from "./project-schema";
+import { IUCN_ECOSYSTEM_CODES } from "./iucn-codes";
 
 export interface ProjectProponentValue { id: string; proponent_id: string; role: string }
 export interface ProjectLocationValue {
@@ -285,7 +286,22 @@ referenceSource: "",
           {(index) => {
             const location = form.locations[index];
             return <div className="grid w-full gap-3 md:grid-cols-2">
-              <Field label="Ecossistema" errors={errorsFor(`locations.${index}.ecosystem`)}><Input value={location.ecosystem} onChange={(event) => updateAt("locations", index, { ecosystem: event.target.value })} placeholder="Ex.: Amazônia" minLength={2} required /></Field>
+              <Field label="Código IUCN" errors={errorsFor(`locations.${index}.ecosystemCode`)}>
+                <Select
+                  value={location.ecosystemCode}
+                  onChange={(event) =>
+                  updateAt("locations", index, { ecosystemCode: event.target.value })
+                  }
+                  required
+                >
+                <option value="">Selecione</option>
+                {IUCN_ECOSYSTEM_CODES.map((code) => (
+                <option key={code} value={code}>
+                 {code}
+                </option>
+                ))}
+                </Select>
+              </Field>
               <Field label="País" errors={errorsFor(`locations.${index}.country`)}><Input value={location.country} onChange={(event) => updateAt("locations", index, { country: event.target.value })} placeholder="Ex.: Brasil" minLength={2} required /></Field>
               <Field label="Extensão (hectares)" errors={errorsFor(`locations.${index}.extent_ha`)}><Input type="number" step="0.01" min="0.01" value={location.extent_ha} onChange={(event) => updateAt("locations", index, { extent_ha: event.target.value })} required /></Field>
               <Field label="Posição / Coordenadas" errors={errorsFor(`locations.${index}.position`)}><Input type="file" accept=".json,.geojson,application/geo+json,application/json" onChange={(event) => void uploadLocation(event, index)} className="h-auto p-1 text-xs file:mr-3 file:h-8 file:rounded file:border-0 file:bg-card file:px-3" /></Field>
@@ -314,6 +330,55 @@ referenceSource: "",
             return <div className="grid w-full gap-3 md:grid-cols-2">
               <Field label="Nome do Indicador" errors={errorsFor(`indicators.${index}.name`)}><Input value={indicator.name} onChange={(event) => updateAt("indicators", index, { name: event.target.value })} placeholder="Ex.: Número de árvores plantadas" minLength={2} required /></Field>
               <Field label="Unidade" errors={errorsFor(`indicators.${index}.unit`)}><Input value={indicator.unit} onChange={(event) => updateAt("indicators", index, { unit: event.target.value })} placeholder="Ex.: ha, unidades, %" required /></Field>
+              <Field label="Componente" errors={errorsFor(`indicators.${index}.component`)}>
+  <Select
+    value={indicator.component}
+    onChange={(event) =>
+      updateAt("indicators", index, { component: event.target.value })
+    }
+    required
+  >
+    <option value="">Selecione</option>
+    <option value="composition">Composição</option>
+    <option value="structure">Estrutura</option>
+  </Select>
+</Field>
+
+<Field label="Direção" errors={errorsFor(`indicators.${index}.direction`)}>
+  <Select
+    value={indicator.direction}
+    onChange={(event) =>
+      updateAt("indicators", index, { direction: event.target.value })
+    }
+    required
+  >
+    <option value="increases_with_condition">Sobe com a melhora</option>
+    <option value="decreases_with_condition">Cai com a melhora</option>
+  </Select>
+</Field>
+
+{indicator.direction === "decreases_with_condition" ? (
+  <Field label="Limiar" errors={errorsFor(`indicators.${index}.threshold`)}>
+    <Input
+      type="number"
+      step="any"
+      value={indicator.threshold}
+      onChange={(event) =>
+        updateAt("indicators", index, { threshold: event.target.value })
+      }
+      required
+    />
+  </Field>
+) : null}
+
+<Field label="Fonte da referência" errors={errorsFor(`indicators.${index}.referenceSource`)}>
+  <Input
+    value={indicator.referenceSource}
+    onChange={(event) =>
+      updateAt("indicators", index, { referenceSource: event.target.value })
+    }
+  />
+</Field>
               <Field label="Localização" errors={errorsFor(`indicators.${index}.location_id`)}><Select value={indicator.location_id} onChange={(event) => updateAt("indicators", index, { location_id: event.target.value })} required><option value="">Selecione</option>{form.locations.map((location) => <option key={location.id} value={location.id}>{location.ecosystem || "Local sem nome"}</option>)}</Select></Field>
               <Field label="Atividade vinculada" errors={errorsFor(`indicators.${index}.activity_id`)}><Select value={indicator.activity_id} onChange={(event) => updateAt("indicators", index, { activity_id: event.target.value })} required><option value="">Selecione</option>{form.activities.map((activity) => <option key={activity.id} value={activity.id}>{activity.name || "Atividade sem nome"}</option>)}</Select></Field>
               <Field label="Valor baseline" errors={errorsFor(`indicators.${index}.value_baseline`)}><Input type="number" step="any" value={indicator.value_baseline} onChange={(event) => updateAt("indicators", index, { value_baseline: event.target.value })} /></Field>
