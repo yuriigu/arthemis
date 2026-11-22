@@ -5,6 +5,7 @@ import {
   IsOptional,
   IsString,
   IsUUID,
+  ValidateIf,
 } from 'class-validator';
 import { Direction, IndicatorComponent } from '@arthemis/database';
 
@@ -41,7 +42,14 @@ export class CreateIndicatorDto {
   @IsNumber()
   valueReference?: number;
 
-  @IsOptional()
+  @ValidateIf(
+    (dto: CreateIndicatorDto) =>
+      dto.direction === Direction.decreases_with_condition ||
+      (dto.threshold !== undefined && dto.threshold !== null),
+  )
+  @IsNotEmpty({
+    message: 'threshold is required when direction is decreases_with_condition',
+  })
   @IsNumber()
   threshold?: number;
 

@@ -1,5 +1,11 @@
 import { PartialType } from '@nestjs/mapped-types';
-import { IsEnum, IsNumber, IsOptional, IsString } from 'class-validator';
+import {
+  IsEnum,
+  IsNumber,
+  IsOptional,
+  IsString,
+  ValidateIf,
+} from 'class-validator';
 import { Direction, IndicatorComponent } from '@arthemis/database';
 import { CreateIndicatorDto } from './create-indicator.dto';
 
@@ -12,7 +18,10 @@ export class UpdateIndicatorDto extends PartialType(CreateIndicatorDto) {
   @IsEnum(Direction)
   direction?: Direction;
 
-  @IsOptional()
+  @ValidateIf(
+    (_dto: UpdateIndicatorDto, value: unknown) =>
+      value !== undefined && value !== null,
+  )
   @IsNumber()
   threshold?: number;
 

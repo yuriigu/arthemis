@@ -3,6 +3,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { Direction } from '@arthemis/database';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateIndicatorDto } from './dto/create-indicator.dto';
 import { UpdateIndicatorDto } from './dto/update-indicator.dto';
@@ -12,9 +13,30 @@ import { PaginationDto } from '../../common/dto/pagination.dto';
 export class IndicatorsService {
   constructor(private readonly prisma: PrismaService) {}
 
+  private assertValidThresholdForDirection(
+    direction: Direction | undefined | null,
+    threshold: number | undefined | null,
+  ) {
+    if (
+      direction === Direction.decreases_with_condition &&
+      (threshold === undefined || threshold === null || Number.isNaN(threshold))
+    ) {
+      throw new BadRequestException(
+        'Threshold is required when direction is decreases_with_condition',
+      );
+    }
+  }
+
   async create(data: CreateIndicatorDto[]) {
     if (!data || data.length === 0)
       throw new BadRequestException('No indicators provided');
+
+    for (const ind of data) {
+      if (!ind.component) {
+        throw new BadRequestException('Indicator component is required');
+      }
+      this.assertValidThresholdForDirection(ind.direction, ind.threshold);
+    }
 
     const indicators = await this.prisma.indicator.createManyAndReturn({
       data: data.map((ind) => ({
@@ -53,6 +75,20 @@ export class IndicatorsService {
   }
 
   async update(id: string, data: UpdateIndicatorDto) {
+    const existing = await this.prisma.indicator.findUnique({
+      where: { id },
+    });
+    if (!existing) throw new NotFoundException('Indicator not found');
+
+    const effectiveDirection = data.direction ?? existing.direction;
+    const effectiveThreshold =
+      data.threshold !== undefined ? data.threshold : existing.threshold;
+
+    this.assertValidThresholdForDirection(
+      effectiveDirection,
+      effectiveThreshold,
+    );
+
     return this.prisma.indicator.update({
       where: { id },
       data: {
