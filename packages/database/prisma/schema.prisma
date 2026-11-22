@@ -125,6 +125,16 @@ model ActivityLocation {
   @@id([activityId, locationId])
 }
 
+enum IndicatorComponent {
+  composition
+  structure
+}
+
+enum Direction {
+  increases_with_condition
+  decreases_with_condition
+}
+
 model Indicator {
   id                String    @id @default(uuid())
   activityId        String
