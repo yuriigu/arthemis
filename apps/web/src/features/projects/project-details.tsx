@@ -10,6 +10,10 @@ import {
   type MapObservation,
 } from "@/features/observations/observation-map";
 import { SdgIcon } from "./sdg-icon";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { transitionProjectAction } from "@/features/projects/actions";
+import { NEXT_STATUS, PROJECT_STATUS_LABEL } from "@/lib/types";
 
 interface Location {
   id: string;
@@ -59,6 +63,7 @@ interface Project {
   projectSdgs: Array<{
     sdg: { id: string; number: number; name: string; iconUrl?: string | null };
   }>;
+  status?: "draft" | "listed" | "under_validation" | "validated" | "under_verification" | "verified" | "expired" | null;
 }
 
 type Tab = "activities" | "locations" | "indicators" | "observations";
@@ -159,9 +164,13 @@ function IndicatorList({
 export function ProjectDetails({
   project,
   observations,
+  role,
+  error,
 }: {
   project: Project;
   observations: Observation[];
+  role: "admin" | "manager" | "visitor";
+  error?: string;
 }) {
   const [selected, setSelected] = useState<Tab>("activities");
   const [selectedActivityId, setSelectedActivityId] = useState(
@@ -281,6 +290,11 @@ export function ProjectDetails({
     ),
   );
 
+  const status = project.status ?? "draft";
+  const next = NEXT_STATUS[status];
+  const adminOnly = next === "validated" || next === "verified";
+  const canTransition = next !== null && (!adminOnly || role === "admin");
+
   return (
     <article className="w-full space-y-6">
       <Link
@@ -290,7 +304,10 @@ export function ProjectDetails({
         ← Voltar aos projetos
       </Link>
       <header className="space-y-4 rounded-lg border border-border bg-card p-6">
-        <h1 className="text-2xl font-semibold">{project.name}</h1>
+        <div className="flex flex-wrap items-center gap-3">
+          <h1 className="text-2xl font-semibold">{project.name}</h1>
+          <Badge variant="secondary">{PROJECT_STATUS_LABEL[status]}</Badge>
+        </div>
         <div className="grid gap-3 text-sm text-muted-foreground sm:grid-cols-2">
           <p>
             <strong className="text-foreground">Vigência:</strong>{" "}
@@ -331,6 +348,22 @@ export function ProjectDetails({
           </div>
         )}
       </header>
+
+        {error ? <p className="text-sm text-destructive">{error}</p> : null}
+
+        {canTransition && next ? (
+    <form action={transitionProjectAction}>
+      <input type="hidden" name="id" value={project.id} />
+      <input type="hidden" name="to" value={next} />
+      <Button type="submit">
+       {next === "validated"
+          ? "Validar"
+          : next === "verified"
+          ? "Verificar"
+          : `Mover para ${PROJECT_STATUS_LABEL[next]}`}
+      </Button>
+    </form>
+        ) : null}
 
       <section className="space-y-4 rounded-lg border border-border bg-card p-5">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
