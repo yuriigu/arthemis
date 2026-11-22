@@ -3,7 +3,11 @@ import bcrypt from "bcrypt";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { resolve } from "node:path";
 import { PrismaClient } from "../generated/prisma/client";
-import { ProjectStatus } from "../generated/prisma/enums";
+import {
+  Direction,
+  IndicatorComponent,
+  ProjectStatus,
+} from "../generated/prisma/enums";
 
 config({ path: resolve(process.cwd(), "../../apps/api/.env") });
 
@@ -212,6 +216,7 @@ async function seed() {
         id: "30000000-0000-4000-8000-000000000001",
         projectId: projects[0].id,
         ecosystem: "Floresta tropical",
+        ecosystemCode: "T1.1",
         extent: 120,
         country: "Brasil",
         position: { lat: -3.119, lng: -60.0217 },
@@ -219,6 +224,7 @@ async function seed() {
       update: {
         projectId: projects[0].id,
         ecosystem: "Floresta tropical",
+        ecosystemCode: "T1.1",
         extent: 120,
         country: "Brasil",
         position: { lat: -3.119, lng: -60.0217 },
@@ -230,6 +236,7 @@ async function seed() {
         id: "30000000-0000-4000-8000-000000000002",
         projectId: projects[1].id,
         ecosystem: "Manguezal",
+        ecosystemCode: "MFT1.1",
         extent: 35,
         country: "Brasil",
         position: { lat: -2.5307, lng: -44.3068 },
@@ -237,6 +244,7 @@ async function seed() {
       update: {
         projectId: projects[1].id,
         ecosystem: "Manguezal",
+        ecosystemCode: "MFT1.1",
         extent: 35,
         country: "Brasil",
         position: { lat: -2.5307, lng: -44.3068 },
@@ -333,18 +341,26 @@ async function seed() {
         activityId: activities[0].id,
         locationId: locations[0].id,
         name: "Turbidez da água",
+        component: IndicatorComponent.composition,
+        direction: Direction.decreases_with_condition,
         unit: "NTU",
         valueBaseline: 18.5,
         valueReference: 12,
+        threshold: 15,
+        referenceSource: "CONAMA 357/2005",
         observationMethod: "Turbidímetro portátil",
       },
       update: {
         activityId: activities[0].id,
         locationId: locations[0].id,
         name: "Turbidez da água",
+        component: IndicatorComponent.composition,
+        direction: Direction.decreases_with_condition,
         unit: "NTU",
         valueBaseline: 18.5,
         valueReference: 12,
+        threshold: 15,
+        referenceSource: "CONAMA 357/2005",
         observationMethod: "Turbidímetro portátil",
       },
     }),
@@ -355,18 +371,24 @@ async function seed() {
         activityId: activities[1].id,
         locationId: locations[1].id,
         name: "Resíduos recolhidos",
+        component: IndicatorComponent.structure,
+        direction: Direction.increases_with_condition,
         unit: "kg",
         valueBaseline: 850,
         valueReference: 500,
+        referenceSource: "Monitoramento comunitário local",
         observationMethod: "Pesagem ao final de cada mutirão",
       },
       update: {
         activityId: activities[1].id,
         locationId: locations[1].id,
         name: "Resíduos recolhidos",
+        component: IndicatorComponent.structure,
+        direction: Direction.increases_with_condition,
         unit: "kg",
         valueBaseline: 850,
         valueReference: 500,
+        referenceSource: "Monitoramento comunitário local",
         observationMethod: "Pesagem ao final de cada mutirão",
       },
     }),
