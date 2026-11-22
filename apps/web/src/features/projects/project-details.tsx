@@ -14,6 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { transitionProjectAction } from "@/features/projects/actions";
 import { NEXT_STATUS, PROJECT_STATUS_LABEL } from "@/lib/types";
+import { COMPONENT_LABEL, DIRECTION_LABEL } from "@/lib/types";
 
 interface Location {
   id: string;
@@ -21,6 +22,7 @@ interface Location {
   country?: string | null;
   extent?: number | null;
   position?: unknown;
+  ecosystemCode?: string | null;
 }
 
 interface Indicator {
@@ -32,6 +34,8 @@ interface Indicator {
   valueReference?: number | null;
   observationMethod?: string | null;
   justification?: string | null;
+  component?: "composition" | "structure" | null;
+  direction?: "increases_with_condition" | "decreases_with_condition" | null; 
 }
 
 interface Observation {
@@ -284,8 +288,7 @@ export function ProjectDetails({
     new Set(
       project.locations
         .map((location) =>
-          [location.country, location.ecosystem].filter(Boolean).join(" · "),
-        )
+          [location.country, location.ecosystemCode ?? location.ecosystem]  .filter(Boolean)  .join(" · "),        )
         .filter(Boolean),
     ),
   );
