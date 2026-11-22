@@ -43,3 +43,29 @@ export const NEXT_STATUS: Record<ProjectStatus, ProjectStatus | null> = {
   verified: null,
   expired: null,
 };
+
+export const IndicatorComponent = {
+  composition: "composition",
+  structure: "structure",
+} as const;
+
+export type IndicatorComponent =
+  (typeof IndicatorComponent)[keyof typeof IndicatorComponent];
+
+export const IndicatorDirection = {
+  increases_with_condition: "increases_with_condition",
+  decreases_with_condition: "decreases_with_condition",
+} as const;
+
+export type IndicatorDirection =
+  (typeof IndicatorDirection)[keyof typeof IndicatorDirection];
+
+export const COMPONENT_LABEL: Record<IndicatorComponent, string> = {
+  composition: "Composição",
+  structure: "Estrutura",
+};
+
+export const DIRECTION_LABEL: Record<IndicatorDirection, string> = {
+  increases_with_condition: "Sobe com a melhora",
+  decreases_with_condition: "Cai com a melhora",
+};
