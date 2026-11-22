@@ -1,9 +1,21 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {  BadRequestException,  ForbiddenException,  Injectable,  NotFoundException,} from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateProjectDto } from './dto/create-project.dto';
 import { UpdateProjectDto } from './dto/update-project.dto';
 import { AddProponentDto } from './dto/add-proponent.dto';
 import { PaginationDto } from '../../common/dto/pagination.dto';
+import { ProjectStatus } from '@arthemis/database';
+import { UserRole } from '../users/enums/user-role.enum';
+
+const NEXT_STATUS: Record<ProjectStatus, ProjectStatus | null> = {
+  [ProjectStatus.draft]: ProjectStatus.listed,
+  [ProjectStatus.listed]: ProjectStatus.under_validation,
+  [ProjectStatus.under_validation]: ProjectStatus.validated,
+  [ProjectStatus.validated]: ProjectStatus.under_verification,
+  [ProjectStatus.under_verification]: ProjectStatus.verified,
+  [ProjectStatus.verified]: null,
+  [ProjectStatus.expired]: null,
+};
 
 @Injectable()
 export class ProjectsService {
@@ -91,6 +103,27 @@ export class ProjectsService {
       },
     });
   }
+
+  async transition(id: string, to: ProjectStatus, role: UserRole) {
+  const project = await this.prisma.project.findUnique({ where: { id } });
+  if (!project) throw new NotFoundException('Project not found');
+
+  if (NEXT_STATUS[project.status] !== to) {
+    throw new BadRequestException('Transição fora da ordem do ciclo');
+  }
+
+  const adminOnly =
+    to === ProjectStatus.validated || to === ProjectStatus.verified;
+  if (adminOnly && role !== UserRole.ADMIN) {
+    throw new ForbiddenException('Apenas admin valida e verifica um projeto');
+  }
+
+
+  return this.prisma.project.update({
+    where: { id },
+    data: { status: to },
+  });
+}
 
   async remove(id: string) {
     await this.prisma.project.delete({ where: { id } });

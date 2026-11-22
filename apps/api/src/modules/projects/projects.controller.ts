@@ -9,6 +9,7 @@ import {
   HttpCode,
   ParseArrayPipe,
   Query,
+  Req,
 } from '@nestjs/common';
 import { ProjectsService } from './projects.service';
 import { CreateProjectDto } from './dto/create-project.dto';
@@ -17,6 +18,7 @@ import { AddProponentDto } from './dto/add-proponent.dto';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { UserRole } from '../users/enums/user-role.enum';
 import { PaginationDto } from '../../common/dto/pagination.dto';
+import { TransitionProjectDto } from './dto/transition-project.dto';
 
 @Controller('project')
 export class ProjectsController {
@@ -75,4 +77,15 @@ export class ProjectsController {
   ) {
     return this.projectsService.removeProponent(projectId, proponentId);
   }
+
+  @Post(':id/transition')
+@Roles(UserRole.ADMIN, UserRole.MANAGER)
+transition(
+  @Param('id') id: string,
+  @Body() dto: TransitionProjectDto,
+  @Req() req: { user: { role: UserRole } },
+) {
+  return this.projectsService.transition(id, dto.to, req.user.role);
+}
+
 }

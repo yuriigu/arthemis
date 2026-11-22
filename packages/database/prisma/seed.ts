@@ -3,6 +3,7 @@ import bcrypt from "bcrypt";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { resolve } from "node:path";
 import { PrismaClient } from "../generated/prisma/client";
+import { ProjectStatus } from "../generated/prisma/enums";
 
 config({ path: resolve(process.cwd(), "../../apps/api/.env") });
 
@@ -176,10 +177,12 @@ async function seed() {
         lifetimeEnd: new Date("2028-12-31T00:00:00.000Z"),
         justification:
           "Monitoramento comunitário da qualidade da água em rios amazônicos.",
+        status: ProjectStatus.draft,
       },
       update: {
         proponentId: organizations[0].id,
         name: "Rios Vivos da Amazônia",
+        status: ProjectStatus.draft,
       },
     }),
     prisma.project.upsert({
@@ -192,10 +195,12 @@ async function seed() {
         lifetimeEnd: new Date("2027-05-31T00:00:00.000Z"),
         justification:
           "Redução de resíduos plásticos em comunidades costeiras.",
+        status: ProjectStatus.listed,
       },
       update: {
         proponentId: organizations[1].id,
         name: "Costa sem Plástico",
+      status: ProjectStatus.listed,
       },
     }),
   ]);
