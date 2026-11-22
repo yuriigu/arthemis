@@ -14,12 +14,29 @@ import { standardSdgs } from "./standard-sdgs";
 import { validateProject, type ProjectValidationErrors } from "./project-schema";
 
 export interface ProjectProponentValue { id: string; proponent_id: string; role: string }
-export interface ProjectLocationValue { id: string; ecosystem: string; extent_ha: number | string; country: string; position: unknown }
+export interface ProjectLocationValue {
+  id: string;
+  ecosystem: string;
+  ecosystemCode: string;
+  extent_ha: number | string;
+  country: string;
+  position: unknown;
+}
 export interface ProjectActivityValue { id: string; name: string; description: string; justification: string; location_ids: string[] }
 export interface ProjectIndicatorValue {
-  id: string; location_id: string; activity_id: string; name: string; unit: string;
-  value_baseline: number | string; value_reference: number | string;
-  observation_method: string; justification: string;
+  id: string;
+  location_id: string;
+  activity_id: string;
+  name: string;
+  unit: string;
+  component: string;
+  direction: string;
+  threshold: string;
+  referenceSource: string;
+  value_baseline: number | string;
+  value_reference: number | string;
+  observation_method: string;
+  justification: string;
 }
 export interface ProjectFormData {
   name: string;
@@ -150,12 +167,16 @@ export function ProjectForm({
   };
 
   function addProponent() { patch("project_proponents", [...form.project_proponents, { id: uid(), proponent_id: "", role: "" }]); }
-  function addLocation() { patch("locations", [...form.locations, { id: uid(), ecosystem: "", extent_ha: "", country: "", position: null }]); }
+  function addLocation() { patch("locations", [...form.locations, { id: uid(), ecosystem: "", ecosystemCode: "", extent_ha: "", country: "", position: null }]); }
   function addActivity() { patch("activities", [...form.activities, { id: uid(), name: "", description: "", justification: "", location_ids: [] }]); }
   function addIndicator() {
     patch("indicators", [...form.indicators, {
       id: uid(), location_id: "", activity_id: "", name: "", unit: "", value_baseline: 0,
       value_reference: 0, observation_method: "", justification: "",
+      component: "",
+direction: "increases_with_condition",
+threshold: "",
+referenceSource: "",
     }]);
   }
 
