@@ -12,6 +12,7 @@ import {
   requireAuthToken,
   requiredFormString,
   requireUuid,
+  transitionProject,
 } from "@/lib/api/server";
 import type { ProjectActionState } from "@/lib/types";
 
@@ -197,3 +198,20 @@ export async function deleteProjectAction(formData: FormData) {
   redirect("/projects?success=deleted");
 }
  
+export async function transitionProjectAction(formData: FormData) {
+  const token = await requireAuthToken();
+  const id = requireUuid(requiredFormString(formData, "id"), "projeto");
+  const to = requiredFormString(formData, "to");
+
+  try {
+    await transitionProject(id, to, token);
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "Não foi possível alterar o status";
+    redirect(`/projects/${id}?error=${encodeURIComponent(message)}`);
+  }
+
+  revalidatePath("/projects");
+  revalidatePath(`/projects/${id}`);
+  redirect(`/projects/${id}?success=status`);
+}
