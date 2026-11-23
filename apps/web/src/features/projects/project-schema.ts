@@ -1,5 +1,6 @@
 import type { ProjectFormData } from "./project-form";
 import { isValidGeoJSON } from "@/lib/geojson";
+import { isIucnEcosystemCode } from "./iucn-codes";
 
 export type ProjectValidationErrors = Record<string, string[]>;
 
@@ -53,12 +54,12 @@ export function validateProject(value: ProjectFormData): ProjectValidationErrors
     addError("locations", "Adicione ao menos uma localização.");
   }
   value.locations.forEach((location, index) => {
-    if (location.ecosystem.trim().length < 2) {
-      addError(
-        `locations.${index}.ecosystem`,
-        "Informe um ecossistema com pelo menos 2 caracteres.",
-      );
-    }
+    if (!isIucnEcosystemCode(location.ecosystemCode)) {
+  addError(
+    `locations.${index}.ecosystemCode`,
+    "Escolha um código IUCN da lista.",
+  );
+}
     if (location.country.trim().length < 2) {
       addError(
         `locations.${index}.country`,
@@ -168,6 +169,43 @@ export function validateProject(value: ProjectFormData): ProjectValidationErrors
         "A justificativa deve ter pelo menos 10 caracteres.",
       );
     }
+
+    if (indicator.component !== "composition" && indicator.component !== "structure") {
+    addError(
+      `indicators.${index}.component`,
+      "Escolha o componente do indicador.",
+    );
+  }
+
+  if (
+    indicator.direction !== "increases_with_condition" &&
+    indicator.direction !== "decreases_with_condition"
+  ) {
+    addError(
+      `indicators.${index}.direction`,
+      "Escolha a direção do indicador.",
+    );
+  }
+
+  if (
+    indicator.direction === "decreases_with_condition" &&
+    !indicator.threshold.trim()
+  ) {
+    addError(
+      `indicators.${index}.threshold`,
+      "Limiar é obrigatório quando o indicador cai com a melhora.",
+    );
+  }
+
+  if (
+    indicator.threshold.trim() &&
+   !Number.isFinite(Number(indicator.threshold))
+  ) {
+    addError(
+      `indicators.${index}.threshold`,
+      "O limiar deve ser um número.",
+    );
+  }
   });
 
   return errors;

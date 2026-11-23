@@ -5,10 +5,13 @@ import Link from "next/link";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import type { FormAction } from "@/lib/types";
+import { Badge } from "@/components/ui/badge";
+import { PROJECT_STATUS_LABEL, type ProjectStatus } from "@/lib/types";
 
 export interface ProjectListItem {
   id: number | string;
   name: string;
+  status?: ProjectStatus | null;
   locations?: Array<{ ecosystem: string | null }>;
   lifetime_start: string | Date;
   lifetime_end: string | Date;
@@ -43,10 +46,11 @@ export function ProjectList({ projects, deleteAction }: { projects: ProjectListI
       {!filtered.length ? <p className="py-6 text-center text-sm text-muted-foreground">Nenhum projeto encontrado para a busca.</p> : (
         <div className="overflow-x-auto rounded-lg border border-border">
           <table className="w-full border-collapse text-left text-sm">
-            <thead className="bg-background text-muted-foreground"><tr>{["Nome", "Ecossistema", "Período", "Ações"].map((heading) => <th key={heading} className="px-4 py-3 font-medium">{heading}</th>)}</tr></thead>
+            <thead className="bg-background text-muted-foreground"><tr>{["Nome", "Status", "Ecossistema", "Período", "Ações"].map((heading) => <th key={heading} className="px-4 py-3 font-medium">{heading}</th>)}</tr></thead>
             <tbody>{filtered.map((project) => (
               <tr key={project.id} className="border-t border-border">
                 <td className="px-4 py-3"><Link href={`/projects/${project.id}`} className="font-semibold text-foreground hover:underline">{project.name}</Link></td>
+                <td className="px-4 py-3"><Badge variant="secondary">{PROJECT_STATUS_LABEL[project.status ?? "draft"]}</Badge></td>
                 <td className="px-4 py-3 text-muted-foreground">{project.locations?.map((location) => location.ecosystem).filter(Boolean).join(", ") || "Não definido"}</td>
                 <td className="whitespace-nowrap px-4 py-3 text-muted-foreground">{formatDate(project.lifetime_start)} - {formatDate(project.lifetime_end)}</td>
                 <td className="px-4 py-3"><form action={deleteAction}><input type="hidden" name="id" value={project.id} /><Button type="submit" variant="destructive" size="sm" disabled={!deleteAction}>Remover</Button></form></td>

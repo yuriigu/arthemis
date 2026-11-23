@@ -459,6 +459,19 @@ export function deleteProject(id: string, token: string) {
   });
 }
 
+export function transitionProject(id: string, to: string, token: string) {
+  return request(`project/${encodeURIComponent(id)}/transition`, token, {
+    method: "POST",
+    body: JSON.stringify({ to }),
+  });
+}
+
+export function getSession(token: string) {
+  return request<{ role: "admin" | "manager" | "visitor" }>("auth/validate", token, {
+    method: "POST",
+  });
+}
+
 export function addProjectProponents(
   projectId: string,
   proponents: Array<{ proponentId: string; role: string }>,
