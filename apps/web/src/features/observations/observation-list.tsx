@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { Input } from "@/components/ui/input";
 import RecordActions from "@/components/record-actions";
 import { ObservationForm } from "./observation-form";
-import type { FormAction } from "@/lib/types";
+import type { FormAction, MonitoringPeriod } from "@/lib/types";
 import styles from "./observation-list.module.css";
 
 interface ObservationRecord {
@@ -25,12 +25,14 @@ interface ObservationIndicator {
 export function ObservationList({
   observations,
   indicators,
+  periods,
   createAction,
   updateAction,
   deleteAction,
 }: {
   observations: ObservationRecord[];
   indicators: ObservationIndicator[];
+  periods: MonitoringPeriod[];
   createAction: FormAction;
   updateAction: FormAction;
   deleteAction: FormAction;
@@ -57,6 +59,7 @@ export function ObservationList({
         {indicators.length ? (
           <ObservationForm
             indicators={formIndicators}
+            periods={periods}
             action={createAction}
             className="border-0 p-0 shadow-none"
           />
@@ -113,6 +116,7 @@ export function ObservationList({
                     formId={formId}
                     recordId={observation.id}
                     indicators={formIndicators}
+                    periods={periods}
                     data={{
                       indicator_id: observation.indicatorId,
                       value: observation.value,

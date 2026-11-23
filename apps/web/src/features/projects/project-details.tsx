@@ -10,6 +10,7 @@ import {
   type MapObservation,
 } from "@/features/observations/observation-map";
 import { SdgIcon } from "./sdg-icon";
+import type { MonitoringPeriod } from "@/lib/types";
 
 interface Location {
   id: string;
@@ -159,9 +160,15 @@ function IndicatorList({
 export function ProjectDetails({
   project,
   observations,
+  role,
+  error,
+  periods,
 }: {
   project: Project;
   observations: Observation[];
+  role: "admin" | "manager" | "visitor";
+  error?: string;
+  periods: MonitoringPeriod[];
 }) {
   const [selected, setSelected] = useState<Tab>("activities");
   const [selectedActivityId, setSelectedActivityId] = useState(

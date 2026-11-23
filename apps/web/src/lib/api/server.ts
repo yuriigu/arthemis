@@ -210,6 +210,7 @@ export interface CreateIndicatorInput {
 export interface CreateObservationInput {
   indicatorId: string;
   value: number;
+  periodId: string;
   date: string;
   position?: unknown;
 }
@@ -268,6 +269,41 @@ async function request<T>(
   const body = await response.text();
   if (!body) return undefined as T;
   return JSON.parse(body) as T;
+}
+
+export function getSession(token: string) {
+  return request<{ role: "admin" | "manager" | "visitor" }>("auth/validate", token, {
+    method: "POST",
+  });
+}
+
+export function listMonitoringPeriods(projectId: string, token: string) {
+  return request<
+    Array<{
+      id: string;
+      projectId: string;
+      startDate: string;
+      endDate: string;
+      yearT: number;
+      verified: boolean;
+    }>
+  >(`monitoring-period?projectId=${encodeURIComponent(projectId)}`, token);
+}
+
+export function createMonitoringPeriod(
+  input: { projectId: string; startDate: string; endDate: string; yearT: number },
+  token: string,
+) {
+  return request("monitoring-period/create", token, {
+    method: "POST",
+    body: jsonBody(input),
+  });
+}
+
+export function verifyMonitoringPeriod(id: string, token: string) {
+  return request(`monitoring-period/${encodeURIComponent(id)}/verify`, token, {
+    method: "POST",
+  });
 }
 
 export function jsonBody(value: unknown) {
