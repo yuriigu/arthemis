@@ -10,6 +10,10 @@ import {
   type MapObservation,
 } from "@/features/observations/observation-map";
 import { SdgIcon } from "./sdg-icon";
+import type { MonitoringPeriod } from "@/lib/types";
+import { createPeriodAction, verifyPeriodAction } from "@/features/projects/actions";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 interface Location {
   id: string;
@@ -159,9 +163,15 @@ function IndicatorList({
 export function ProjectDetails({
   project,
   observations,
+  role,
+  error,
+  periods,
 }: {
   project: Project;
   observations: Observation[];
+  role: "admin" | "manager" | "visitor";
+  error?: string;
+  periods: MonitoringPeriod[];
 }) {
   const [selected, setSelected] = useState<Tab>("activities");
   const [selectedActivityId, setSelectedActivityId] = useState(
@@ -581,7 +591,40 @@ export function ProjectDetails({
           )}
         </div>
       </section>
+      {error ? <p className="text-sm text-destructive">{error}</p> : null}
+
+<section className="space-y-4 rounded-lg border border-border bg-card p-6">
+  <h2 className="text-lg font-semibold">Períodos de monitoramento</h2>
+  <ul className="space-y-2 text-sm">
+    {periods.map((period) => (
+      <li key={period.id} className="flex flex-wrap items-center gap-3">
+        <span>
+          {period.startDate.slice(0, 10)} a {period.endDate.slice(0, 10)} · ano T {period.yearT}
+          {period.verified ? " · verificado" : ""}
+        </span>
+        {!period.verified && role === "admin" ? (
+          <form action={verifyPeriodAction}>
+            <input type="hidden" name="id" value={period.id} />
+            <input type="hidden" name="projectId" value={project.id} />
+            <Button type="submit" size="sm">Marcar como verificado</Button>
+          </form>
+        ) : null}
+      </li>
+    ))}
+  </ul>
+
+  {role === "admin" || role === "manager" ? (
+    <form action={createPeriodAction} className="grid gap-3 sm:grid-cols-4">
+      <input type="hidden" name="projectId" value={project.id} />
+      <Input type="date" name="startDate" required />
+      <Input type="date" name="endDate" required />
+      <Input type="number" name="yearT" placeholder="Ano T" required />
+      <Button type="submit">Criar período</Button>
+        </form>
+      ) : null}
+    </section>
     </article>
+    
   );
 }
  

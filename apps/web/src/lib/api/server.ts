@@ -10,6 +10,12 @@ const apiBaseUrl = (
   "http://localhost:3000/api"
 ).replace(/\/+$/, "");
 
+export function getSession(token: string) {
+  return request<{ role: "admin" | "manager" | "visitor" }>("auth/validate", token, {
+    method: "POST",
+  });
+}
+
 export class ApiError extends Error {
   constructor(
     message: string,
