@@ -146,7 +146,6 @@ function IndicatorList({
 
   return (
     <ul className="divide-y divide-border">
-<<<<<<< HEAD
       {indicators.map((indicator) => {
         const componentLabel = indicator.component
           ? COMPONENT_LABEL[indicator.component] ?? indicator.component
@@ -158,26 +157,6 @@ function IndicatorList({
         return (
           <li key={indicator.id} className="space-y-1 py-3">
             <strong>{indicator.name}</strong>
-=======
-      {indicators.map((indicator) => (
-        <li key={indicator.id} className="space-y-1 py-3">
-          <strong>{indicator.name}</strong>
-          <p className="text-sm text-muted-foreground">
-            Atividade: {activityNames.get(indicator.id) ?? "—"} · Unidade:{" "}
-            {indicator.unit || "—"} · Baseline: {indicator.valueBaseline ?? "—"}{" "}
-            · Referência: {indicator.valueReference ?? "—"}
-          </p>
-          <p className="text-sm text-muted-foreground">
-            {indicator.component
-              ? COMPONENT_LABEL[indicator.component]
-              : "Componente não informado"}
-               {" · "}
-              {indicator.direction
-               ? DIRECTION_LABEL[indicator.direction]
-               : "Direção não informada"}
-           </p>
-          {indicator.observationMethod && (
->>>>>>> 22679cb3632814555002cabf323f645bcfa43eaf
             <p className="text-sm text-muted-foreground">
               Atividade: {activityNames.get(indicator.id) ?? "—"} · Unidade:{" "}
               {indicator.unit || "—"} · Baseline: {indicator.valueBaseline ?? "—"}{" "}
@@ -528,18 +507,12 @@ export function ProjectDetails({
                           <ul className="list-inside list-disc text-sm text-muted-foreground">
                             {activity.activityLocations.map(({ location }) => (
                               <li key={location.id}>
-<<<<<<< HEAD
                                 {location.country || "—"} ·{" "}
                                 {location.ecosystem || "—"}
                                 {location.ecosystemCode
                                   ? ` (${location.ecosystemCode})`
                                   : ""}{" "}
                                 · {location.extent ?? "—"} ha
-=======
-                               {location.country || "—"} ·{" "}
-                               {location.ecosystemCode ?? location.ecosystem ?? "—"} ·{" "}
-                               {location.extent ?? "—"} ha
->>>>>>> 22679cb3632814555002cabf323f645bcfa43eaf
                               </li>
                             ))}
                           </ul>

@@ -12,14 +12,10 @@ export interface ProjectListItem {
   id: number | string;
   name: string;
   status?: ProjectStatus | null;
-<<<<<<< HEAD
   locations?: Array<{
     ecosystem?: string | null;
     ecosystemCode?: string | null;
   }>;
-=======
-  locations?: Array<{  ecosystem?: string | null;  ecosystemCode?: string | null;}>;
->>>>>>> 22679cb3632814555002cabf323f645bcfa43eaf
   lifetime_start: string | Date;
   lifetime_end: string | Date;
 }
@@ -69,11 +65,7 @@ export function ProjectList({ projects, deleteAction }: { projects: ProjectListI
               <tr key={project.id} className="border-t border-border">
                 <td className="px-4 py-3"><Link href={`/projects/${project.id}`} className="font-semibold text-foreground hover:underline">{project.name}</Link></td>
                 <td className="px-4 py-3"><Badge variant="secondary">{PROJECT_STATUS_LABEL[project.status ?? "draft"]}</Badge></td>
-<<<<<<< HEAD
                 <td className="px-4 py-3 text-muted-foreground">{project.locations?.map(formatLocationEcosystem).filter(Boolean).join(", ") || "Não definido"}</td>
-=======
-                <td className="px-4 py-3 text-muted-foreground">{project.locations?.map((location) => location.ecosystemCode ?? location.ecosystem).filter(Boolean).join(", ") || "Não definido"}</td>
->>>>>>> 22679cb3632814555002cabf323f645bcfa43eaf
                 <td className="whitespace-nowrap px-4 py-3 text-muted-foreground">{formatDate(project.lifetime_start)} - {formatDate(project.lifetime_end)}</td>
                 <td className="px-4 py-3"><form action={deleteAction}><input type="hidden" name="id" value={project.id} /><Button type="submit" variant="destructive" size="sm" disabled={!deleteAction}>Remover</Button></form></td>
               </tr>
