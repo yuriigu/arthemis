@@ -2,6 +2,7 @@ packages:
   - apps/api
   - packages/database
 allowBuilds:
+  '@parcel/watcher': false
   '@prisma/engines': true
   '@scarf/scarf': false
   bcrypt: true

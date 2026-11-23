@@ -10,6 +10,11 @@ import {
   type MapObservation,
 } from "@/features/observations/observation-map";
 import { SdgIcon } from "./sdg-icon";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { transitionProjectAction } from "@/features/projects/actions";
+import { NEXT_STATUS, PROJECT_STATUS_LABEL } from "@/lib/types";
+import { COMPONENT_LABEL, DIRECTION_LABEL } from "@/lib/types";
 
 interface Location {
   id: string;
@@ -17,6 +22,7 @@ interface Location {
   country?: string | null;
   extent?: number | null;
   position?: unknown;
+  ecosystemCode?: string | null;
 }
 
 interface Indicator {
@@ -28,6 +34,8 @@ interface Indicator {
   valueReference?: number | null;
   observationMethod?: string | null;
   justification?: string | null;
+  component?: "composition" | "structure" | null;
+  direction?: "increases_with_condition" | "decreases_with_condition" | null; 
 }
 
 interface Observation {
@@ -59,6 +67,7 @@ interface Project {
   projectSdgs: Array<{
     sdg: { id: string; number: number; name: string; iconUrl?: string | null };
   }>;
+  status?: "draft" | "listed" | "under_validation" | "validated" | "under_verification" | "verified" | "expired" | null;
 }
 
 type Tab = "activities" | "locations" | "indicators" | "observations";
@@ -137,21 +146,33 @@ function IndicatorList({
 
   return (
     <ul className="divide-y divide-border">
-      {indicators.map((indicator) => (
-        <li key={indicator.id} className="space-y-1 py-3">
-          <strong>{indicator.name}</strong>
-          <p className="text-sm text-muted-foreground">
-            Atividade: {activityNames.get(indicator.id) ?? "—"} · Unidade:{" "}
-            {indicator.unit || "—"} · Baseline: {indicator.valueBaseline ?? "—"}{" "}
-            · Referência: {indicator.valueReference ?? "—"}
-          </p>
-          {indicator.observationMethod && (
+      {indicators.map((indicator) => {
+        const componentLabel = indicator.component
+          ? COMPONENT_LABEL[indicator.component] ?? indicator.component
+          : "—";
+        const directionLabel = indicator.direction
+          ? DIRECTION_LABEL[indicator.direction] ?? indicator.direction
+          : "—";
+
+        return (
+          <li key={indicator.id} className="space-y-1 py-3">
+            <strong>{indicator.name}</strong>
             <p className="text-sm text-muted-foreground">
-              Método: {indicator.observationMethod}
+              Atividade: {activityNames.get(indicator.id) ?? "—"} · Unidade:{" "}
+              {indicator.unit || "—"} · Baseline: {indicator.valueBaseline ?? "—"}{" "}
+              · Referência: {indicator.valueReference ?? "—"}
             </p>
-          )}
-        </li>
-      ))}
+            <p className="text-sm text-muted-foreground">
+              Componente: {componentLabel} · Direção: {directionLabel}
+            </p>
+            {indicator.observationMethod && (
+              <p className="text-sm text-muted-foreground">
+                Método: {indicator.observationMethod}
+              </p>
+            )}
+          </li>
+        );
+      })}
     </ul>
   );
 }
@@ -159,9 +180,13 @@ function IndicatorList({
 export function ProjectDetails({
   project,
   observations,
+  role,
+  error,
 }: {
   project: Project;
   observations: Observation[];
+  role: "admin" | "manager" | "visitor";
+  error?: string;
 }) {
   const [selected, setSelected] = useState<Tab>("activities");
   const [selectedActivityId, setSelectedActivityId] = useState(
@@ -274,12 +299,21 @@ export function ProjectDetails({
   const locationSummary = Array.from(
     new Set(
       project.locations
-        .map((location) =>
-          [location.country, location.ecosystem].filter(Boolean).join(" · "),
-        )
+        .map((location) => {
+          const ecosystemDisplay =
+            location.ecosystem && location.ecosystemCode
+              ? `${location.ecosystem} (${location.ecosystemCode})`
+              : (location.ecosystem || location.ecosystemCode);
+          return [location.country, ecosystemDisplay].filter(Boolean).join(" · ");
+        })
         .filter(Boolean),
     ),
   );
+
+  const status = project.status ?? "draft";
+  const next = NEXT_STATUS[status];
+  const adminOnly = next === "validated" || next === "verified";
+  const canTransition = next !== null && (!adminOnly || role === "admin");
 
   return (
     <article className="w-full space-y-6">
@@ -290,7 +324,10 @@ export function ProjectDetails({
         ← Voltar aos projetos
       </Link>
       <header className="space-y-4 rounded-lg border border-border bg-card p-6">
-        <h1 className="text-2xl font-semibold">{project.name}</h1>
+        <div className="flex flex-wrap items-center gap-3">
+          <h1 className="text-2xl font-semibold">{project.name}</h1>
+          <Badge variant="secondary">{PROJECT_STATUS_LABEL[status]}</Badge>
+        </div>
         <div className="grid gap-3 text-sm text-muted-foreground sm:grid-cols-2">
           <p>
             <strong className="text-foreground">Vigência:</strong>{" "}
@@ -331,6 +368,22 @@ export function ProjectDetails({
           </div>
         )}
       </header>
+
+        {error ? <p className="text-sm text-destructive">{error}</p> : null}
+
+        {canTransition && next ? (
+    <form action={transitionProjectAction}>
+      <input type="hidden" name="id" value={project.id} />
+      <input type="hidden" name="to" value={next} />
+      <Button type="submit">
+       {next === "validated"
+          ? "Validar"
+          : next === "verified"
+          ? "Verificar"
+          : `Mover para ${PROJECT_STATUS_LABEL[next]}`}
+      </Button>
+    </form>
+        ) : null}
 
       <section className="space-y-4 rounded-lg border border-border bg-card p-5">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
@@ -455,8 +508,11 @@ export function ProjectDetails({
                             {activity.activityLocations.map(({ location }) => (
                               <li key={location.id}>
                                 {location.country || "—"} ·{" "}
-                                {location.ecosystem || "—"} ·{" "}
-                                {location.extent ?? "—"} ha
+                                {location.ecosystem || "—"}
+                                {location.ecosystemCode
+                                  ? ` (${location.ecosystemCode})`
+                                  : ""}{" "}
+                                · {location.extent ?? "—"} ha
                               </li>
                             ))}
                           </ul>
@@ -494,6 +550,7 @@ export function ProjectDetails({
                     <tr>
                       <th className="py-2 pr-4">País</th>
                       <th className="py-2 pr-4">Ecossistema</th>
+                      <th className="py-2 pr-4">Código IUCN</th>
                       <th className="py-2">Área</th>
                     </tr>
                   </thead>
@@ -506,6 +563,9 @@ export function ProjectDetails({
                         <td className="py-3 pr-4">{location.country || "—"}</td>
                         <td className="py-3 pr-4">
                           {location.ecosystem || "—"}
+                        </td>
+                        <td className="py-3 pr-4">
+                          {location.ecosystemCode || "—"}
                         </td>
                         <td className="py-3">{location.extent ?? "—"} ha</td>
                       </tr>

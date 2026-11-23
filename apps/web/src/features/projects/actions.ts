@@ -12,6 +12,7 @@ import {
   requireAuthToken,
   requiredFormString,
   requireUuid,
+  transitionProject,
 } from "@/lib/api/server";
 import type { ProjectActionState } from "@/lib/types";
 
@@ -26,6 +27,7 @@ interface SubmittedProject {
   locations: Array<{
     id: string;
     ecosystem: string;
+    ecosystemCode: string;
     extent_ha: number | string;
     country: string;
     position: unknown;
@@ -46,6 +48,10 @@ interface SubmittedProject {
     value_reference: number | string;
     observation_method: string;
     justification: string;
+    component: string;
+    direction: string;
+    threshold: string;
+    referenceSource: string;
   }>;
 }
 
@@ -114,6 +120,7 @@ async function performProjectCreation(formData: FormData): Promise<ProjectAction
     ? await createLocations(data.locations.map((location) => ({
       projectId,
       ecosystem: location.ecosystem.trim(),
+      ecosystemCode: location.ecosystemCode,
       country: location.country.trim(),
       extent: finiteNumber(location.extent_ha, "extensão"),
       ...(location.position && typeof location.position === "object"
@@ -156,15 +163,23 @@ async function performProjectCreation(formData: FormData): Promise<ProjectAction
         throw new Error("Um indicador referencia uma atividade ou localização inválida.");
       }
       return {
-        activityId,
-        locationId,
-        name: indicator.name.trim(),
-        unit: indicator.unit.trim(),
-        valueBaseline: finiteNumber(indicator.value_baseline, "valor baseline"),
-        valueReference: finiteNumber(indicator.value_reference, "valor de referência"),
-        observationMethod: indicator.observation_method.trim(),
-        justification: indicator.justification.trim(),
-      };
+  activityId,
+  locationId,
+  name: indicator.name.trim(),
+  unit: indicator.unit.trim(),
+  component: indicator.component,
+  direction: indicator.direction,
+  ...(indicator.threshold.trim()
+    ? { threshold: Number(indicator.threshold) }
+    : {}),
+  ...(indicator.referenceSource.trim()
+    ? { referenceSource: indicator.referenceSource.trim() }
+    : {}),
+  valueBaseline: finiteNumber(indicator.value_baseline, "valor baseline"),
+  valueReference: finiteNumber(indicator.value_reference, "valor de referência"),
+  observationMethod: indicator.observation_method.trim(),
+  justification: indicator.justification.trim(),
+};
     }), token);
   }
 
@@ -197,3 +212,20 @@ export async function deleteProjectAction(formData: FormData) {
   redirect("/projects?success=deleted");
 }
  
+export async function transitionProjectAction(formData: FormData) {
+  const token = await requireAuthToken();
+  const id = requireUuid(requiredFormString(formData, "id"), "projeto");
+  const to = requiredFormString(formData, "to");
+
+  try {
+    await transitionProject(id, to, token);
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "Não foi possível alterar o status";
+    redirect(`/projects/${id}?error=${encodeURIComponent(message)}`);
+  }
+
+  revalidatePath("/projects");
+  revalidatePath(`/projects/${id}`);
+  redirect(`/projects/${id}?success=status`);
+}
