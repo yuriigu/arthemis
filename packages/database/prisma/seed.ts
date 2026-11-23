@@ -209,6 +209,40 @@ async function seed() {
     }),
   ]);
 
+await prisma.monitoringPeriod.upsert({
+  where: { id: "30000000-0000-4000-8000-000000000001" },
+  create: {
+    id: "30000000-0000-4000-8000-000000000001",
+    projectId: projectIds[0],
+    startDate: new Date("2025-01-01"),
+    endDate: new Date("2025-12-31"),
+    yearT: 2025,
+    verified: false,
+  },
+  update: {
+    startDate: new Date("2025-01-01"),
+    endDate: new Date("2025-12-31"),
+    yearT: 2025,
+  },
+});
+
+await prisma.monitoringPeriod.upsert({
+  where: { id: "30000000-0000-4000-8000-000000000002" },
+  create: {
+    id: "30000000-0000-4000-8000-000000000002",
+    projectId: projectIds[1],
+    startDate: new Date("2025-06-01"),
+    endDate: new Date("2026-05-31"),
+    yearT: 2025,
+    verified: false,
+  },
+  update: {
+    startDate: new Date("2025-06-01"),
+    endDate: new Date("2026-05-31"),
+    yearT: 2025,
+  },
+});
+
   const locations = await Promise.all([
     prisma.location.upsert({
       where: { id: "30000000-0000-4000-8000-000000000001" },

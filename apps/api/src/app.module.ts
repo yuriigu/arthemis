@@ -18,6 +18,7 @@ import { AppService } from './app.service';
 import { APP_GUARD } from '@nestjs/core';
 import { JwtAuthGuard } from './modules/auth/guards/jwt-auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
+import { MonitoringPeriodsModule } from './modules/monitoring-periods/monitoring-periods.module';
 
 @Module({
   imports: [
@@ -36,6 +37,7 @@ import { RolesGuard } from './common/guards/roles.guard';
     IndicatorsModule,
     ObservationsModule,
     SdgsModule,
+    MonitoringPeriodsModule,
   ],
   controllers: [AppController],
   providers: [
