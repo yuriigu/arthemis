@@ -95,6 +95,7 @@ export interface Location {
   id: string;
   projectId: string;
   ecosystem: string | null;
+  ecosystemCode?: string | null;
   extent: number | null;
   country: string | null;
   position: unknown;
@@ -110,6 +111,8 @@ export interface Indicator {
   valueReference: number | null;
   observationMethod: string | null;
   justification: string | null;
+  component?: "composition" | "structure" | null;
+  direction?: "increases_with_condition" | "decreases_with_condition" | null;
 }
 
 export interface Observation {
@@ -155,7 +158,7 @@ export interface ProjectSummary {
   name: string;
   lifetimeStart: string | null;
   lifetimeEnd: string | null;
-  locations: Array<{ ecosystem: string | null }>;
+  locations: Array<{ ecosystem: string | null; ecosystemCode?: string | null }>;
 }
 
 export interface CreateOrganizationInput {

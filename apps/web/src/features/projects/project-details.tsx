@@ -146,21 +146,33 @@ function IndicatorList({
 
   return (
     <ul className="divide-y divide-border">
-      {indicators.map((indicator) => (
-        <li key={indicator.id} className="space-y-1 py-3">
-          <strong>{indicator.name}</strong>
-          <p className="text-sm text-muted-foreground">
-            Atividade: {activityNames.get(indicator.id) ?? "—"} · Unidade:{" "}
-            {indicator.unit || "—"} · Baseline: {indicator.valueBaseline ?? "—"}{" "}
-            · Referência: {indicator.valueReference ?? "—"}
-          </p>
-          {indicator.observationMethod && (
+      {indicators.map((indicator) => {
+        const componentLabel = indicator.component
+          ? COMPONENT_LABEL[indicator.component] ?? indicator.component
+          : "—";
+        const directionLabel = indicator.direction
+          ? DIRECTION_LABEL[indicator.direction] ?? indicator.direction
+          : "—";
+
+        return (
+          <li key={indicator.id} className="space-y-1 py-3">
+            <strong>{indicator.name}</strong>
             <p className="text-sm text-muted-foreground">
-              Método: {indicator.observationMethod}
+              Atividade: {activityNames.get(indicator.id) ?? "—"} · Unidade:{" "}
+              {indicator.unit || "—"} · Baseline: {indicator.valueBaseline ?? "—"}{" "}
+              · Referência: {indicator.valueReference ?? "—"}
             </p>
-          )}
-        </li>
-      ))}
+            <p className="text-sm text-muted-foreground">
+              Componente: {componentLabel} · Direção: {directionLabel}
+            </p>
+            {indicator.observationMethod && (
+              <p className="text-sm text-muted-foreground">
+                Método: {indicator.observationMethod}
+              </p>
+            )}
+          </li>
+        );
+      })}
     </ul>
   );
 }
@@ -287,8 +299,13 @@ export function ProjectDetails({
   const locationSummary = Array.from(
     new Set(
       project.locations
-        .map((location) =>
-          [location.country, location.ecosystemCode ?? location.ecosystem]  .filter(Boolean)  .join(" · "),        )
+        .map((location) => {
+          const ecosystemDisplay =
+            location.ecosystem && location.ecosystemCode
+              ? `${location.ecosystem} (${location.ecosystemCode})`
+              : (location.ecosystem || location.ecosystemCode);
+          return [location.country, ecosystemDisplay].filter(Boolean).join(" · ");
+        })
         .filter(Boolean),
     ),
   );
@@ -491,8 +508,11 @@ export function ProjectDetails({
                             {activity.activityLocations.map(({ location }) => (
                               <li key={location.id}>
                                 {location.country || "—"} ·{" "}
-                                {location.ecosystem || "—"} ·{" "}
-                                {location.extent ?? "—"} ha
+                                {location.ecosystem || "—"}
+                                {location.ecosystemCode
+                                  ? ` (${location.ecosystemCode})`
+                                  : ""}{" "}
+                                · {location.extent ?? "—"} ha
                               </li>
                             ))}
                           </ul>
@@ -530,6 +550,7 @@ export function ProjectDetails({
                     <tr>
                       <th className="py-2 pr-4">País</th>
                       <th className="py-2 pr-4">Ecossistema</th>
+                      <th className="py-2 pr-4">Código IUCN</th>
                       <th className="py-2">Área</th>
                     </tr>
                   </thead>
@@ -542,6 +563,9 @@ export function ProjectDetails({
                         <td className="py-3 pr-4">{location.country || "—"}</td>
                         <td className="py-3 pr-4">
                           {location.ecosystem || "—"}
+                        </td>
+                        <td className="py-3 pr-4">
+                          {location.ecosystemCode || "—"}
                         </td>
                         <td className="py-3">{location.extent ?? "—"} ha</td>
                       </tr>
