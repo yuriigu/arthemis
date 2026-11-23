@@ -83,8 +83,27 @@ model MonitoringPeriod {
   createdAt    DateTime      @default(now()) @map("created_at")
   updatedAt    DateTime      @updatedAt @map("updated_at")
 
+  creditResult CreditResult?
+
   @@index([projectId])
   @@map("monitoring_periods")
+}
+
+model CreditResult {
+  id        String           @id @default(uuid())
+  periodId  String           @unique @map("period_id")
+  period    MonitoringPeriod @relation(fields: [periodId], references: [id], onDelete: Cascade)
+  qhaGross  Float            @map("qha_gross")
+  b         Float
+  leakage   Float
+  nbo       Float
+  nc        Int
+  buffer    Int
+  nnc       Int
+  createdAt DateTime         @default(now()) @map("created_at")
+  updatedAt DateTime         @updatedAt @map("updated_at")
+
+  @@map("credit_results")
 }
 
 model Sdg {
