@@ -19,6 +19,7 @@ import { APP_GUARD } from '@nestjs/core';
 import { JwtAuthGuard } from './modules/auth/guards/jwt-auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
 import { MonitoringPeriodsModule } from './modules/monitoring-periods/monitoring-periods.module';
+import { CreditsModule } from './modules/credits/credits.module';
 
 @Module({
   imports: [
@@ -38,6 +39,7 @@ import { MonitoringPeriodsModule } from './modules/monitoring-periods/monitoring
     ObservationsModule,
     SdgsModule,
     MonitoringPeriodsModule,
+    CreditsModule,
   ],
   controllers: [AppController],
   providers: [
