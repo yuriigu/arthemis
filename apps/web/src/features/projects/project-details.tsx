@@ -154,6 +154,15 @@ function IndicatorList({
             {indicator.unit || "—"} · Baseline: {indicator.valueBaseline ?? "—"}{" "}
             · Referência: {indicator.valueReference ?? "—"}
           </p>
+          <p className="text-sm text-muted-foreground">
+            {indicator.component
+              ? COMPONENT_LABEL[indicator.component]
+              : "Componente não informado"}
+               {" · "}
+              {indicator.direction
+               ? DIRECTION_LABEL[indicator.direction]
+               : "Direção não informada"}
+           </p>
           {indicator.observationMethod && (
             <p className="text-sm text-muted-foreground">
               Método: {indicator.observationMethod}
@@ -490,9 +499,9 @@ export function ProjectDetails({
                           <ul className="list-inside list-disc text-sm text-muted-foreground">
                             {activity.activityLocations.map(({ location }) => (
                               <li key={location.id}>
-                                {location.country || "—"} ·{" "}
-                                {location.ecosystem || "—"} ·{" "}
-                                {location.extent ?? "—"} ha
+                               {location.country || "—"} ·{" "}
+                               {location.ecosystemCode ?? location.ecosystem ?? "—"} ·{" "}
+                               {location.extent ?? "—"} ha
                               </li>
                             ))}
                           </ul>
