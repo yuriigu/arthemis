@@ -1,5 +1,5 @@
 import { IsEnum } from 'class-validator';
-import { ProjectStatus } from '@prisma/client';
+import { ProjectStatus } from '@arthemis/database';
 
 export class TransitionProjectDto {
   @IsEnum(ProjectStatus)
