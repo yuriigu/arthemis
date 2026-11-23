@@ -9,7 +9,7 @@ export class MonitoringPeriodsController {
   constructor(private readonly service: MonitoringPeriodsService) {}
 
   @Get()
-  findByProject(@Query('projectId') projectId: string) {
+  findByProject(@Query('projectId') projectId: string): Promise<unknown> {
     return this.service.findByProject(projectId);
   }
 

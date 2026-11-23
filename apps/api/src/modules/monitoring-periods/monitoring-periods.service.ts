@@ -6,13 +6,12 @@ import { CreateMonitoringPeriodDto } from './dto/create-monitoring-period.dto';
 export class MonitoringPeriodsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  findByProject(projectId: string) {
-    return this.prisma.monitoringPeriod.findMany({
-      where: { projectId },
-      orderBy: { startDate: 'asc' },
-    });
-  }
-
+  async findByProject(projectId: string): Promise<unknown> {
+  return this.prisma.monitoringPeriod.findMany({
+    where: { projectId },
+    orderBy: { startDate: 'asc' },
+  });
+}
   async create(dto: CreateMonitoringPeriodDto) {
     const start = new Date(dto.startDate);
     const end = new Date(dto.endDate);
