@@ -12,3 +12,11 @@ export type ProjectFormAction = (
   formData: FormData,
 ) => Promise<ProjectActionState>;
  
+export interface MonitoringPeriod {
+  id: string;
+  projectId: string;
+  startDate: string;
+  endDate: string;
+  yearT: number;
+  verified: boolean;
+}

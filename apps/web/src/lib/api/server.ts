@@ -2,6 +2,7 @@ import "server-only";
 
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import type { MonitoringPeriod } from "@/lib/types";
 
 const apiBaseUrl = (
   process.env.ARTHEMIS_API_URL ??
@@ -633,4 +634,26 @@ export function deleteIndicator(id: string, token: string) {
     method: "DELETE",
   });
 }
- 
+
+export function listMonitoringPeriods(projectId: string, token: string) {
+  return request<MonitoringPeriod[]>(
+    `monitoring-period?projectId=${encodeURIComponent(projectId)}`,
+    token,
+  );
+}
+
+export function createMonitoringPeriod(
+  input: { projectId: string; startDate: string; endDate: string; yearT: number },
+  token: string,
+) {
+  return request("monitoring-period/create", token, {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export function verifyMonitoringPeriod(id: string, token: string) {
+  return request(`monitoring-period/${encodeURIComponent(id)}/verify`, token, {
+    method: "POST",
+  });
+}
