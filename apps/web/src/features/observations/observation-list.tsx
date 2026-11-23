@@ -14,6 +14,7 @@ interface ObservationRecord {
   date: string;
   position: unknown | null;
   indicator?: { id: string; name: string; unit: string | null };
+  period?: {  id: string;  startDate: string;  endDate: string;  verified: boolean;} | null;
 }
 
 interface ObservationIndicator {
@@ -103,6 +104,8 @@ export function ObservationList({
                         {observation.indicator?.unit ? ` ${observation.indicator.unit}` : ""}
                         {" · "}
                         {new Date(`${observation.date.slice(0, 10)}T00:00:00`).toLocaleDateString("pt-BR")}
+                        {" · "}
+                        {observation.period ? `${observation.period.startDate.slice(0, 10)} a ${observation.period.endDate.slice(0, 10)}` : "Sem período"}
                       </p>
                     </div>
                     <RecordActions
