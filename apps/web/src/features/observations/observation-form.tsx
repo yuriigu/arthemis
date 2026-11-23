@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { FormCard } from "@/components/form-card";
-import type { FormAction } from "@/lib/types";
+import type { FormAction, MonitoringPeriod } from "@/lib/types";
 import { isValidGeoJSON } from "@/lib/geojson";
 import { validateObservation } from "./observation-schema";
 
@@ -19,6 +19,7 @@ export interface ObservationFormValues {
 export interface ObservationFormProps {
   data?: Partial<ObservationFormValues>;
   indicators: Array<{ id: number | string; name: string }>;
+  periods: MonitoringPeriod[];
   recordId?: string;
   formId?: string;
   title?: string;
@@ -43,6 +44,7 @@ function localDateValue() {
 export function ObservationForm({
   data = {},
   indicators,
+  periods,
   recordId,
   formId,
   title = "Observação",
@@ -77,17 +79,22 @@ export function ObservationForm({
         className="flex flex-col gap-5"
         id={formId}
         onSubmit={(event) => {
-          const errors = validateObservation({
-            indicator_id: String(new FormData(event.currentTarget).get("indicator_id") ?? ""),
-            value: String(new FormData(event.currentTarget).get("value") ?? ""),
-            date: String(new FormData(event.currentTarget).get("date") ?? ""),
-            position,
-          });
-          if (errors.length) {
-            event.preventDefault();
-            setNotice(errors.join(" "));
-          }
-        }}
+  const formData = new FormData(event.currentTarget);
+  const errors = validateObservation(
+    {
+      indicator_id: String(formData.get("indicator_id") ?? ""),
+      period_id: String(formData.get("period_id") ?? ""),
+      value: String(formData.get("value") ?? ""),
+      date: String(formData.get("date") ?? ""),
+      position,
+    },
+    periods,
+  );
+  if (errors.length) {
+    event.preventDefault();
+    setNotice(errors.join(" "));
+  }
+}}
       >
         {recordId && <input type="hidden" name="id" value={recordId} />}
         <label className="grid gap-2 text-sm font-medium">Indicador

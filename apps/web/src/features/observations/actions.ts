@@ -35,6 +35,7 @@ function observationInput(formData: FormData) {
   const position = parseObservationPosition(formData);
   return {
     indicatorId: requireUuid(requiredFormString(formData, "indicator_id"), "indicador"),
+    periodId: requireUuid(requiredFormString(formData, "period_id"), "período"),
     value,
     date,
     ...(position === undefined ? {} : { position }),
