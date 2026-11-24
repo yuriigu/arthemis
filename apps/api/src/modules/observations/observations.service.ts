@@ -23,7 +23,15 @@ export class ObservationsService {
       orderBy: [{ date: 'desc' }, { createdAt: 'desc' }],
       include: {
         indicator: {
-          select: { id: true, name: true, unit: true },
+        select: { id: true, name: true, unit: true }, 
+      },
+          period: {
+        select: {
+        id: true,
+        startDate: true,
+        endDate: true,
+        verified: true,
+        },
         },
       },
     });

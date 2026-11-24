@@ -2,6 +2,7 @@ import {
   ApiError,
   getProject,
   getSession,
+  listMonitoringPeriods,
   listProjectObservations,
   requireAuthToken,
 } from "@/lib/api/server";
@@ -29,10 +30,11 @@ export default async function ProjectDetailPage({
     searchParams,
     requireAuthToken(),
   ]);
-  const [project, observations, session] = await Promise.all([
+  const [project, observations, session, periods] = await Promise.all([
     getProjectOrNotFound(projectId, token),
     listProjectObservations(token, projectId),
     getSession(token),
+    listMonitoringPeriods(projectId, token),
   ]);
 
   return (
@@ -41,6 +43,7 @@ export default async function ProjectDetailPage({
       observations={observations}
       role={session.role}
       error={error}
+      periods={periods}
     />
   );
 }

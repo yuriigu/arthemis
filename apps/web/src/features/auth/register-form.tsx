@@ -4,7 +4,6 @@ import { useState, type FormEvent } from "react";
 import { Button } from "@/components/ui/button";
 import { FormCard } from "@/components/form-card";
 import { Input } from "@/components/ui/input";
-import { SocialAuthButtons } from "@/features/auth/social-auth-buttons";
 import styles from "@/features/auth/login.module.css";
 
 export function RegisterForm() {
@@ -79,8 +78,6 @@ export function RegisterForm() {
             {notice}
           </p>
         )}
-
-        <SocialAuthButtons />
       </form>
     </FormCard>
   );

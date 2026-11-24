@@ -4,7 +4,6 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { FormCard } from "@/components/form-card";
-import { SocialAuthButtons } from "@/features/auth/social-auth-buttons";
 import type { FormAction } from "@/lib/types";
 
 export interface UserLoginProps {
@@ -57,7 +56,6 @@ export function UserLogin({
         >
           {submitLabel}
         </Button>
-        <SocialAuthButtons />
       </form>
         </FormCard>
       );

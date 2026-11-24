@@ -15,6 +15,7 @@ import {
   transitionProject,
 } from "@/lib/api/server";
 import type { ProjectActionState } from "@/lib/types";
+import { createMonitoringPeriod, verifyMonitoringPeriod } from "@/lib/api/server";
 
 interface SubmittedProject {
   name: string;
@@ -211,6 +212,37 @@ export async function deleteProjectAction(formData: FormData) {
   revalidatePath("/projects");
   redirect("/projects?success=deleted");
 }
+
+export async function createPeriodAction(formData: FormData) {
+  const token = await requireAuthToken();
+  const projectId = requireUuid(requiredFormString(formData, "projectId"), "projeto");
+  try {
+    await createMonitoringPeriod(
+      {
+        projectId,
+        startDate: requiredFormString(formData, "startDate"),
+        endDate: requiredFormString(formData, "endDate"),
+        yearT: Number(requiredFormString(formData, "yearT")),
+      },
+      token,
+    );
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Não foi possível criar o período";
+    redirect(`/projects/${projectId}?error=${encodeURIComponent(message)}`);
+  }
+  revalidatePath(`/projects/${projectId}`);
+  redirect(`/projects/${projectId}`);
+}
+
+export async function verifyPeriodAction(formData: FormData) {
+  const token = await requireAuthToken();
+  const id = requireUuid(requiredFormString(formData, "id"), "período");
+  const projectId = requireUuid(requiredFormString(formData, "projectId"), "projeto");
+  await verifyMonitoringPeriod(id, token);
+  revalidatePath(`/projects/${projectId}`);
+  redirect(`/projects/${projectId}`);
+}
+ 
  
 export async function transitionProjectAction(formData: FormData) {
   const token = await requireAuthToken();
