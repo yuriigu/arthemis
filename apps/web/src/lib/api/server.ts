@@ -476,12 +476,6 @@ export function transitionProject(id: string, to: string, token: string) {
   });
 }
 
-export function getSession(token: string) {
-  return request<{ role: "admin" | "manager" | "visitor" }>("auth/validate", token, {
-    method: "POST",
-  });
-}
-
 export function addProjectProponents(
   projectId: string,
   proponents: Array<{ proponentId: string; role: string }>,
