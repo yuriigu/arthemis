@@ -85,8 +85,8 @@ export function DashboardCharts({ projects, asOf }: { projects: Project[]; asOf:
         description="Projetos iniciados e vigentes em cada mês."
         data={chartData}
         series={[
-          { key: "novos", label: "Iniciados", color: "#2563eb" },
-          { key: "ativos", label: "Vigentes", color: "#a855f7" },
+          { key: "novos", label: "Iniciados", color: "var(--chart-1)" },
+          { key: "ativos", label: "Vigentes", color: "var(--chart-2)" },
         ]}
         selectedPeriod={period}
         periodOptions={periods}
@@ -98,8 +98,8 @@ export function DashboardCharts({ projects, asOf }: { projects: Project[]; asOf:
         title="Situação dos projetos"
         description="Proporção atual entre projetos em vigência e encerrados."
         slices={[
-          { label: "Vigentes", value: active, color: "#2563eb" },
-          { label: "Encerrados", value: completed, color: "#a855f7" },
+          { label: "Vigentes", value: active, color: "var(--chart-1)" },
+          { label: "Encerrados", value: completed, color: "var(--chart-2)" },
         ]}
         emptySliceNote={
           projects.length > 0 && completed === 0

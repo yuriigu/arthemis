@@ -1,175 +1,23 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
-import type { FeatureCollection, MultiPolygon, Polygon } from "geojson";
-import { cn } from "@/lib/utils";
-import { isValidGeoJSON } from "@/lib/geojson";
-import {
-  MapControls,
-  MapMarker,
-  MapView,
-  MarkerContent,
-  MarkerPopup,
-  useMapContext,
-} from "@/components/ui/map";
+import dynamic from "next/dynamic";
+import type { MapLocation, MapObservation, ObservationMapProps } from "./types";
 
-export interface MapLocation {
-  position?: unknown;
-  ecosystem?: string | null;
-  country?: string | null;
-}
+export type { MapLocation, MapObservation, ObservationMapProps };
 
-export interface MapObservation {
-  id: number | string;
-  name: string;
-  unit: string;
-  value: number | string;
-  date: string | Date;
-  lng: number;
-  lat: number;
-  color: string;
-}
+const ObservationMapContent = dynamic(
+  () =>
+    import("./observation-map-content").then((m) => m.ObservationMapContent),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex h-125 w-full items-center justify-center rounded-md border border-border bg-muted text-sm text-muted-foreground animate-pulse">
+        Carregando mapa...
+      </div>
+    ),
+  },
+);
 
-export interface ObservationMapProps {
-  locations: MapLocation[];
-  observations?: MapObservation[];
-  className?: string;
-}
-
-function getBoundaryGeometry(position: unknown): Polygon | MultiPolygon | null {
-  if (!isValidGeoJSON(position) || !position || typeof position !== "object")
-    return null;
-  const geometry =
-    "type" in position && position.type === "Feature" && "geometry" in position
-      ? position.geometry
-      : position;
-  if (!geometry || typeof geometry !== "object" || !("type" in geometry))
-    return null;
-  if (geometry.type === "Polygon") return geometry as Polygon;
-  if (geometry.type === "MultiPolygon") return geometry as MultiPolygon;
-  return null;
-}
-
-function ObservationBoundaries({ locations }: { locations: MapLocation[] }) {
-  const { map, styleReady, revision } = useMapContext();
-  const data = useMemo<FeatureCollection>(
-    () => ({
-      type: "FeatureCollection",
-      features: locations.flatMap((location) => {
-        const geometry = getBoundaryGeometry(location.position);
-        return geometry
-          ? [
-              {
-                type: "Feature" as const,
-                properties: {
-                  ecosystem: location.ecosystem ?? "",
-                  country: location.country ?? "",
-                },
-                geometry,
-              },
-            ]
-          : [];
-      }),
-    }),
-    [locations],
-  );
-
-  useEffect(() => {
-    if (!map || !styleReady) return;
-    const sourceId = "observation-boundaries";
-    if (map.getLayer("observation-boundary-fill"))
-      map.removeLayer("observation-boundary-fill");
-    if (map.getLayer("observation-boundary-outline"))
-      map.removeLayer("observation-boundary-outline");
-    if (map.getSource(sourceId)) map.removeSource(sourceId);
-    if (!data.features.length) return;
-    map.addSource(sourceId, { type: "geojson", data });
-    map.addLayer({
-      id: "observation-boundary-fill",
-      type: "fill",
-      source: sourceId,
-      paint: { "fill-color": "#22c55e", "fill-opacity": 0.4 },
-    });
-    map.addLayer({
-      id: "observation-boundary-outline",
-      type: "line",
-      source: sourceId,
-      paint: { "line-color": "#16a34a", "line-width": 2 },
-    });
-    return () => {
-      if (map.getLayer("observation-boundary-fill"))
-        map.removeLayer("observation-boundary-fill");
-      if (map.getLayer("observation-boundary-outline"))
-        map.removeLayer("observation-boundary-outline");
-      if (map.getSource(sourceId)) map.removeSource(sourceId);
-    };
-  }, [map, styleReady, revision, data]);
-  return null;
-}
-
-function getCenter(locations: MapLocation[]): [number, number] {
-  for (const location of locations) {
-    const geometry = getBoundaryGeometry(location.position);
-    if (!geometry) continue;
-    const coordinates =
-      geometry.type === "Polygon"
-        ? geometry.coordinates[0]
-        : geometry.coordinates[0]?.[0];
-    if (!coordinates?.length) continue;
-    const longitudes = coordinates.map((point) => point[0]);
-    const latitudes = coordinates.map((point) => point[1]);
-    return [
-      (Math.min(...longitudes) + Math.max(...longitudes)) / 2,
-      (Math.min(...latitudes) + Math.max(...latitudes)) / 2,
-    ];
-  }
-  return [0, 0];
-}
-
-export function ObservationMap({
-  locations,
-  observations = [],
-  className,
-}: ObservationMapProps) {
-  const center = useMemo(() => getCenter(locations), [locations]);
-  return (
-    <div
-      className={cn(
-        "relative h-125 w-full overflow-hidden rounded-md bg-background",
-        className,
-      )}
-    >
-      <MapView center={center} zoom={6} className="absolute inset-0">
-        <ObservationBoundaries locations={locations} />
-        {observations.map((observation) => (
-          <MapMarker
-            key={observation.id}
-            longitude={observation.lng}
-            latitude={observation.lat}
-          >
-            <MarkerContent>
-              <span
-                className="block size-4 rounded-full border-2 border-background shadow-md transition-transform hover:scale-125"
-                style={{ backgroundColor: observation.color }}
-              />
-            </MarkerContent>
-            <MarkerPopup>
-              <div className="space-y-1">
-                <p className="font-semibold">{observation.name}</p>
-                <p className="text-lg font-bold text-primary">
-                  {observation.value} {observation.unit}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  {new Date(observation.date).toLocaleDateString("pt-BR", {
-                    timeZone: "UTC",
-                  })}
-                </p>
-              </div>
-            </MarkerPopup>
-          </MapMarker>
-        ))}
-        <MapControls position="top-right" />
-      </MapView>
-    </div>
-  );
+export function ObservationMap(props: ObservationMapProps) {
+  return <ObservationMapContent {...props} />;
 }

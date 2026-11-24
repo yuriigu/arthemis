@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import {
   ApiError,
   getProject,
@@ -18,7 +19,7 @@ async function getProjectOrNotFound(projectId: string, token: string) {
   }
 }
 
-export default async function ProjectDetailPage({
+async function ProjectDetailContent({
   params,
   searchParams,
 }: {
@@ -45,5 +46,31 @@ export default async function ProjectDetailPage({
       error={error}
       periods={periods}
     />
+  );
+}
+
+export default function ProjectDetailPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ projectId: string }>;
+  searchParams: Promise<{ error?: string }>;
+}) {
+  return (
+    <Suspense
+      fallback={
+        <section
+          className="w-full space-y-6"
+          aria-busy="true"
+          aria-label="Carregando detalhes do projeto"
+        >
+          <div className="h-6 w-32 animate-pulse rounded bg-muted" />
+          <div className="h-40 animate-pulse rounded-lg bg-muted" />
+          <div className="h-96 animate-pulse rounded-lg bg-muted" />
+        </section>
+      }
+    >
+      <ProjectDetailContent params={params} searchParams={searchParams} />
+    </Suspense>
   );
 }

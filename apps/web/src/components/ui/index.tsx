@@ -34,15 +34,12 @@ export { DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHead
 export { SheetClose, SheetContent, SheetDescription, SheetFooter, SheetOverlay, SheetPortal, SheetRoot, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 export { ChartContainer, ChartStyle, ChartTooltip, LineChart, MetricCard, PieChart } from "@/components/ui/chart";
 export {
-  MapView,
-  MapClusterLayer,
-  MapControls,
-  MapMarker,
-  MapPopup,
-  MapRoute,
-  MarkerContent,
-  MarkerLabel,
-  MarkerPopup,
-  MarkerTooltip,
-} from "@/components/ui/map";
+  LeafletView,
+  LeafletMarker,
+  LeafletPopup,
+  LeafletControls,
+  LeafletPolygon,
+  LeafletPolyline,
+  LeafletGeoJSON,
+} from "@/components/ui/leaflet";
 export { TooltipContent, TooltipPortal, TooltipProvider, TooltipRoot, TooltipTrigger } from "@/components/ui/tooltip";
