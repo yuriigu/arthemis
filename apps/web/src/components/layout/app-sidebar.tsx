@@ -14,6 +14,7 @@ import {
   Search,
   Users,
 } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { logoutAction } from "@/features/auth/actions";
 import { cn } from "@/lib/utils";
 
@@ -59,15 +60,17 @@ export function AppSidebar({ groupLabel = "Arthemis", items = defaultItems }: Si
             </Link>
           );
         })}
-        <form action={logoutAction}>
-          <button
+        <form action={logoutAction} className="w-full">
+          <Button
             type="submit"
+            variant="ghost"
+            size="sm"
             title={collapsed ? "Sair" : undefined}
-            className="flex min-h-10 w-full items-center gap-3 rounded-md px-3 text-left text-sm font-medium text-sidebar-foreground/80 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+            className="flex min-h-10 w-full items-center justify-start gap-3 rounded-md px-3 text-left text-sm font-medium text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
           >
             <LogOut aria-hidden="true" className="size-5 shrink-0" />
             {!collapsed && <span className="truncate">Sair</span>}
-          </button>
+          </Button>
         </form>
       </nav>
     </aside>

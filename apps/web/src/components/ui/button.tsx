@@ -4,6 +4,14 @@ import * as React from "react";
 import { cn } from "@/lib/utils";
 
 export type ButtonVariant = "default" | "secondary" | "outline" | "ghost" | "destructive" | "link";
+
+/**
+ * Diretrizes de uso dos tamanhos de botão (ButtonSize):
+ * - "default": Formulários, envios e ações primárias de página.
+ * - "sm": Ações em linhas de tabelas, botões de itens compactos e botões secundários inline.
+ * - "lg": Ações de destaque / Call-to-action (CTA).
+ * - "icon": Botões que contêm apenas um ícone (ex.: alternador de tema, fechar modal).
+ */
 export type ButtonSize = "default" | "sm" | "lg" | "icon";
 
 export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {

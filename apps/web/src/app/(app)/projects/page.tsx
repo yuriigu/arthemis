@@ -8,7 +8,7 @@ import { requireAuthToken } from "@/lib/api/server";
 async function ProjectsContent({
   searchParams,
 }: {
-  searchParams: Promise<{ success?: string }>;
+  searchParams: Promise<{ success?: string; error?: string }>;
 }) {
   const token = await requireAuthToken();
   const [organizations, sdgs, projects, params] = await Promise.all([
@@ -29,8 +29,13 @@ async function ProjectsContent({
         <p className="mt-1 text-sm text-muted-foreground">Cadastre e consulte os projetos vinculados às organizações.</p>
       </header>
       {params.success && successMessages[params.success] && (
-        <p role="status" className="rounded-md bg-secondary px-4 py-3 text-sm text-sage-green-800 dark:text-sage-green-200">
+        <p role="status" className="rounded-md border border-primary/30 bg-primary/10 px-4 py-3 text-sm text-primary">
           {successMessages[params.success]}
+        </p>
+      )}
+      {params.error === "referenced" && (
+        <p role="alert" className="rounded-md border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+          Não foi possível excluir este projeto porque ele está vinculado a outros registros (observações, indicadores, atividades ou localizações). Remova essas dependências antes de tentar novamente.
         </p>
       )}
       <ProjectForm

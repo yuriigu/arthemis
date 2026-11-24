@@ -209,7 +209,7 @@ referenceSource: "",
       <form
         action={formAction}
         noValidate
-        className="flex flex-col gap-6"
+        className="flex flex-col gap-5"
         onSubmit={(event) => {
           const errors = validateProject(form);
           setFieldErrors(errors);
@@ -244,7 +244,7 @@ referenceSource: "",
               return (
                 <label
                   key={id}
-                  className={`w-24 cursor-pointer rounded border p-1 text-center text-xs ${selected ? "border-foreground ring-2 ring-ring" : "opacity-60 hover:opacity-100"}`}
+                  className={`w-20 sm:w-24 flex-1 min-w-[5rem] max-w-28 cursor-pointer rounded border p-1 text-center text-xs ${selected ? "border-foreground ring-2 ring-ring" : "opacity-60 hover:opacity-100"}`}
                 >
                   <input
                     className="sr-only"
@@ -304,7 +304,7 @@ referenceSource: "",
               </Field>
               <Field label="País" errors={errorsFor(`locations.${index}.country`)}><Input value={location.country} onChange={(event) => updateAt("locations", index, { country: event.target.value })} placeholder="Ex.: Brasil" minLength={2} required /></Field>
               <Field label="Extensão (hectares)" errors={errorsFor(`locations.${index}.extent_ha`)}><Input type="number" step="0.01" min="0.01" value={location.extent_ha} onChange={(event) => updateAt("locations", index, { extent_ha: event.target.value })} required /></Field>
-              <Field label="Posição / Coordenadas" errors={errorsFor(`locations.${index}.position`)}><Input type="file" accept=".json,.geojson,application/geo+json,application/json" onChange={(event) => void uploadLocation(event, index)} className="h-auto p-1 text-xs file:mr-3 file:h-8 file:rounded file:border-0 file:bg-card file:px-3" /></Field>
+              <Field label="Posição / Coordenadas" errors={errorsFor(`locations.${index}.position`)}><Input type="file" accept=".json,.geojson,application/geo+json,application/json" onChange={(event) => void uploadLocation(event, index)} className="h-auto p-1 text-xs file:mr-3 file:h-8 file:rounded file:border-0 file:bg-muted file:px-3" /></Field>
             </div>;
           }}
         </FormFieldWrapper>

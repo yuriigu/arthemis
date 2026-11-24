@@ -20,7 +20,7 @@ export function RegisterForm() {
       description="Preencha seus dados para começar."
       className={styles.formCard}
     >
-      <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+      <form onSubmit={handleSubmit} className="flex flex-col gap-5">
         <label className="grid gap-2 text-sm font-semibold text-foreground">
           Nome
           <Input

@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect, unstable_rethrow } from "next/navigation";
 import {
   addProjectProponents,
+  ApiError,
   createActivities,
   createIndicators,
   createLocations,
@@ -208,7 +209,12 @@ export async function createProjectAction(
 export async function deleteProjectAction(formData: FormData) {
   const token = await requireAuthToken();
   const id = requireUuid(requiredFormString(formData, "id"), "projeto");
-  await deleteProject(id, token);
+  try {
+    await deleteProject(id, token);
+  } catch (error) {
+    if (!(error instanceof ApiError) || error.status !== 409) throw error;
+    redirect("/projects?error=referenced");
+  }
   revalidatePath("/projects");
   redirect("/projects?success=deleted");
 }

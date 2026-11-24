@@ -27,7 +27,11 @@ async function OrganizationsContent({
   return (
     <section className="w-full space-y-6">
       <header><h1 className="text-2xl font-semibold">Organizações</h1><p className="mt-1 text-sm text-muted-foreground">Cadastre, edite e remova as organizações do sistema.</p></header>
-      {params.success && messages[params.success] && <p role="status" className="rounded-md bg-secondary px-4 py-3 text-sm text-sage-green-800 dark:text-sage-green-200">{messages[params.success]}</p>}
+      {params.success && messages[params.success] && (
+        <p role="status" className="rounded-md border border-primary/30 bg-primary/10 px-4 py-3 text-sm text-primary">
+          {messages[params.success]}
+        </p>
+      )}
       {params.error === "referenced" && (
         <p role="alert" className="rounded-md border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
           Não foi possível excluir esta organização porque ela está vinculada a projetos. Transfira ou remova os projetos antes de tentar novamente.

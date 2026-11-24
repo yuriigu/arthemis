@@ -25,10 +25,10 @@ async function UsersContent({
     return (
       <section className="w-full space-y-4">
         <h1 className="text-2xl font-semibold">Usuários</h1>
-        <p role="alert" className="rounded-lg border border-border bg-secondary p-4 text-sm text-foreground">
+        <p role="alert" className="rounded-md border border-border bg-muted p-4 text-sm text-foreground">
           Sua conta não tem permissão para gerenciar usuários. Se seu acesso foi alterado recentemente, saia e entre novamente. Caso contrário, solicite acesso a um administrador.
         </p>
-        <Link href="/dashboard" className="text-sm font-medium text-primary underline">
+        <Link href="/dashboard" className="text-sm font-medium text-primary hover:underline">
           Voltar ao painel
         </Link>
       </section>
@@ -48,7 +48,11 @@ async function UsersContent({
   return (
     <section className="w-full space-y-6">
       <header><h1 className="text-2xl font-semibold">Usuários</h1><p className="mt-1 text-sm text-muted-foreground">Cadastre e gerencie perfis vinculados às organizações.</p></header>
-      {params.success && messages[params.success] && <p role="status" className="rounded-md bg-secondary px-4 py-3 text-sm text-sage-green-800 dark:text-sage-green-200">{messages[params.success]}</p>}
+      {params.success && messages[params.success] && (
+        <p role="status" className="rounded-md border border-primary/30 bg-primary/10 px-4 py-3 text-sm text-primary">
+          {messages[params.success]}
+        </p>
+      )}
       <UserForm proponents={organizations} action={createUserAction} />
       <section className="space-y-4 rounded-lg border border-border bg-card p-5">
         <h2 className="font-semibold">Usuários cadastrados</h2>
