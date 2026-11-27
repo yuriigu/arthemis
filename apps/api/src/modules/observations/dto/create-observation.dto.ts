@@ -1,6 +1,5 @@
 import {
   IsDateString,
-  IsNotEmpty,
   IsNumber,
   IsObject,
   IsOptional,
@@ -9,16 +8,21 @@ import {
 import { Prisma } from '@arthemis/database';
 
 export class CreateObservationDto {
+  @IsOptional()
   @IsUUID()
-  periodId: string;
-  @IsNotEmpty()
-  indicatorId: string;
+  periodId?: string;
 
+  @IsOptional()
+  @IsUUID()
+  indicatorId?: string;
+
+  @IsOptional()
   @IsNumber()
-  value: number;
+  value?: number;
 
+  @IsOptional()
   @IsDateString()
-  date: string;
+  date?: string;
 
   @IsOptional()
   @IsObject()

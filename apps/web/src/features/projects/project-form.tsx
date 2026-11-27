@@ -9,6 +9,7 @@ import { Select } from "@/components/ui/select";
 import { FormCard, FormFieldWrapper } from "@/components/form-card";
 import type { ProjectActionState, ProjectFormAction } from "@/lib/types";
 import { isValidGeoJSON } from "@/lib/geojson";
+import { GeoJSONPreview } from "@/components/ui/leaflet/geojson-preview";
 import { SdgIcon } from "./sdg-icon";
 import { standardSdgs } from "./standard-sdgs";
 import { validateProject, type ProjectValidationErrors } from "./project-schema";
@@ -193,14 +194,13 @@ referenceSource: "",
       updateAt("locations", index, { position });
       setNotice("Arquivo carregado com sucesso.");
     } catch {
+      input.value = "";
       setFieldErrors((current) => ({
         ...current,
         [`locations.${index}.position`]: [
           "Insira um arquivo GeoJSON válido.",
         ],
       }));
-    } finally {
-      input.value = "";
     }
   }
 
@@ -219,9 +219,9 @@ referenceSource: "",
           }
         }}
       >
-        <Field label="Nome do Projeto" errors={errorsFor("name")}><Input name="name" value={form.name} onChange={(event) => patch("name", event.target.value)} minLength={2} maxLength={150} required /></Field>
+        <Field label="Nome do Projeto" errors={errorsFor("name")}><Input name="name" value={form.name} onChange={(event) => patch("name", event.target.value)}/></Field>
         <Field label="Organização responsável pelo projeto">
-          <Select name="proponent_id" value={form.proponent_id} onChange={(event) => patch("proponent_id", event.target.value)} required>
+          <Select name="proponent_id" value={form.proponent_id} onChange={(event) => patch("proponent_id", event.target.value)}>
             <option value="" disabled>Selecione uma organização</option>{proponents.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
           </Select>
           {errorsFor("proponent_id").map((error) => <span key={error} role="alert" className="font-normal text-destructive">{error}</span>)}
@@ -229,7 +229,7 @@ referenceSource: "",
         <FormFieldWrapper title="Outras Organizações" items={form.project_proponents} itemTitlePrefix="Organização" addLabel="+ Adicionar Organização" onAdd={addProponent} onRemove={(index) => removeAt("project_proponents", index)}>
           {(index) => <div className="grid w-full gap-3 md:grid-cols-2">
             <Field label="Organização" errors={errorsFor(`project_proponents.${index}.proponent_id`)}><Select value={form.project_proponents[index].proponent_id} onChange={(event) => updateAt("project_proponents", index, { proponent_id: event.target.value })}><option value="">Selecione</option>{proponents.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</Select></Field>
-            <Field label="Função/Papel no Projeto" errors={errorsFor(`project_proponents.${index}.role`)}><Input value={form.project_proponents[index].role} onChange={(event) => updateAt("project_proponents", index, { role: event.target.value })} placeholder="Ex.: Financiador, consultor" minLength={5} required /></Field>
+            <Field label="Função/Papel no Projeto" errors={errorsFor(`project_proponents.${index}.role`)}><Input value={form.project_proponents[index].role} onChange={(event) => updateAt("project_proponents", index, { role: event.target.value })} placeholder="Ex.: Financiador, consultor" minLength={5}/></Field>
           </div>}
         </FormFieldWrapper>
         {renderErrors("project_proponents")}
@@ -277,11 +277,11 @@ referenceSource: "",
         <fieldset className="space-y-3">
           <legend className="text-sm font-medium">Vigência do Projeto</legend>
           <div className="flex flex-wrap items-end gap-3">
-            <Field label="Início" errors={errorsFor("lifetime_start")}><Input type="date" name="lifetime_start" value={toDateValue(form.lifetime_start)} onChange={(event) => patch("lifetime_start", event.target.value)} required /></Field>
-            <Field label="Término" errors={errorsFor("lifetime_end")}><Input type="date" name="lifetime_end" min={toDateValue(form.lifetime_start)} value={toDateValue(form.lifetime_end)} onChange={(event) => patch("lifetime_end", event.target.value)} required /></Field>
+            <Field label="Início" errors={errorsFor("lifetime_start")}><Input type="date" name="lifetime_start" value={toDateValue(form.lifetime_start)} onChange={(event) => patch("lifetime_start", event.target.value)}/></Field>
+            <Field label="Término" errors={errorsFor("lifetime_end")}><Input type="date" name="lifetime_end" min={toDateValue(form.lifetime_start)} value={toDateValue(form.lifetime_end)} onChange={(event) => patch("lifetime_end", event.target.value)}/></Field>
           </div>
         </fieldset>
-        <Field label="Justificativa" errors={errorsFor("justification")}><Textarea name="justification" value={form.justification} onChange={(event) => patch("justification", event.target.value)} minLength={10} placeholder="Descreva a justificativa do projeto..." required /></Field>
+        <Field label="Justificativa" errors={errorsFor("justification")}><Textarea name="justification" value={form.justification} onChange={(event) => patch("justification", event.target.value)} minLength={10} placeholder="Descreva a justificativa do projeto..."/></Field>
         <FormFieldWrapper title="Localizações do Projeto" items={form.locations} itemTitlePrefix="Local" addLabel="+ Novo Local" onAdd={addLocation} onRemove={(index) => removeAt("locations", index)}>
           {(index) => {
             const location = form.locations[index];
@@ -292,7 +292,7 @@ referenceSource: "",
                   onChange={(event) =>
                   updateAt("locations", index, { ecosystemCode: event.target.value })
                   }
-                  required
+                  
                 >
                 <option value="">Selecione</option>
                 {IUCN_ECOSYSTEM_CODES.map((code) => (
@@ -302,9 +302,14 @@ referenceSource: "",
                 ))}
                 </Select>
               </Field>
-              <Field label="País" errors={errorsFor(`locations.${index}.country`)}><Input value={location.country} onChange={(event) => updateAt("locations", index, { country: event.target.value })} placeholder="Ex.: Brasil" minLength={2} required /></Field>
-              <Field label="Extensão (hectares)" errors={errorsFor(`locations.${index}.extent_ha`)}><Input type="number" step="0.01" min="0.01" value={location.extent_ha} onChange={(event) => updateAt("locations", index, { extent_ha: event.target.value })} required /></Field>
+              <Field label="País" errors={errorsFor(`locations.${index}.country`)}><Input value={location.country} onChange={(event) => updateAt("locations", index, { country: event.target.value })} placeholder="Ex.: Brasil" minLength={2}/></Field>
+              <Field label="Extensão (hectares)" errors={errorsFor(`locations.${index}.extent_ha`)}><Input type="number" step="0.01" min="0.01" value={location.extent_ha} onChange={(event) => updateAt("locations", index, { extent_ha: event.target.value })}/></Field>
               <Field label="Posição / Coordenadas" errors={errorsFor(`locations.${index}.position`)}><Input type="file" accept=".json,.geojson,application/geo+json,application/json" onChange={(event) => void uploadLocation(event, index)} className="h-auto p-1 text-xs file:mr-3 file:h-8 file:rounded file:border-0 file:bg-muted file:px-3" /></Field>
+              {location.position != null && (
+                <div className="md:col-span-2">
+                  <GeoJSONPreview data={location.position} className="h-96" />
+                </div>
+              )}
             </div>;
           }}
         </FormFieldWrapper>
@@ -313,9 +318,9 @@ referenceSource: "",
           {(index) => {
             const activity = form.activities[index];
             return <div className="grid w-full gap-3 md:grid-cols-2">
-              <Field label="Nome" errors={errorsFor(`activities.${index}.name`)}><Input value={activity.name} onChange={(event) => updateAt("activities", index, { name: event.target.value })} placeholder="Ex.: Remoção de resíduos sólidos" minLength={2} required /></Field>
-              <Field label="Descrição" errors={errorsFor(`activities.${index}.description`)}><Textarea value={activity.description} onChange={(event) => updateAt("activities", index, { description: event.target.value })} minLength={5} required /></Field>
-              <Field label="Justificativa" errors={errorsFor(`activities.${index}.justification`)}><Textarea value={activity.justification} onChange={(event) => updateAt("activities", index, { justification: event.target.value })} minLength={5} required /></Field>
+              <Field label="Nome" errors={errorsFor(`activities.${index}.name`)}><Input value={activity.name} onChange={(event) => updateAt("activities", index, { name: event.target.value })} placeholder="Ex.: Remoção de resíduos sólidos" minLength={2}/></Field>
+              <Field label="Descrição" errors={errorsFor(`activities.${index}.description`)}><Textarea value={activity.description} onChange={(event) => updateAt("activities", index, { description: event.target.value })} minLength={5}/></Field>
+              <Field label="Justificativa" errors={errorsFor(`activities.${index}.justification`)}><Textarea value={activity.justification} onChange={(event) => updateAt("activities", index, { justification: event.target.value })} minLength={5}/></Field>
               <fieldset className="grid gap-2"><legend className="text-sm font-medium">Localizações da Atividade</legend>
                 {form.locations.length === 0 ? <p className="text-sm text-muted-foreground">Adicione uma localização primeiro.</p> : form.locations.map((location) => <label key={location.id} className="flex items-center gap-2 text-sm"><input type="checkbox" checked={activity.location_ids.includes(location.id)} onChange={(event) => updateAt("activities", index, { location_ids: event.target.checked ? [...activity.location_ids, location.id] : activity.location_ids.filter((id) => id !== location.id) })} />{location.ecosystem || "Novo Local"}</label>)}
                 {errorsFor(`activities.${index}.location_ids`).map((error) => <p key={error} role="alert" className="text-sm text-destructive">{error}</p>)}
@@ -328,15 +333,15 @@ referenceSource: "",
           {(index) => {
             const indicator = form.indicators[index];
             return <div className="grid w-full gap-3 md:grid-cols-2">
-              <Field label="Nome do Indicador" errors={errorsFor(`indicators.${index}.name`)}><Input value={indicator.name} onChange={(event) => updateAt("indicators", index, { name: event.target.value })} placeholder="Ex.: Número de árvores plantadas" minLength={2} required /></Field>
-              <Field label="Unidade" errors={errorsFor(`indicators.${index}.unit`)}><Input value={indicator.unit} onChange={(event) => updateAt("indicators", index, { unit: event.target.value })} placeholder="Ex.: ha, unidades, %" required /></Field>
+              <Field label="Nome do Indicador" errors={errorsFor(`indicators.${index}.name`)}><Input value={indicator.name} onChange={(event) => updateAt("indicators", index, { name: event.target.value })} placeholder="Ex.: Número de árvores plantadas" minLength={2}/></Field>
+              <Field label="Unidade" errors={errorsFor(`indicators.${index}.unit`)}><Input value={indicator.unit} onChange={(event) => updateAt("indicators", index, { unit: event.target.value })} placeholder="Ex.: ha, unidades, %"/></Field>
               <Field label="Componente" errors={errorsFor(`indicators.${index}.component`)}>
   <Select
     value={indicator.component}
     onChange={(event) =>
       updateAt("indicators", index, { component: event.target.value })
     }
-    required
+    
   >
     <option value="">Selecione</option>
     <option value="composition">Composição</option>
@@ -350,7 +355,7 @@ referenceSource: "",
     onChange={(event) =>
       updateAt("indicators", index, { direction: event.target.value })
     }
-    required
+    
   >
     <option value="increases_with_condition">Sobe com a melhora</option>
     <option value="decreases_with_condition">Cai com a melhora</option>
@@ -366,7 +371,7 @@ referenceSource: "",
       onChange={(event) =>
         updateAt("indicators", index, { threshold: event.target.value })
       }
-      required
+      
     />
   </Field>
 ) : null}
@@ -379,12 +384,12 @@ referenceSource: "",
     }
   />
 </Field>
-              <Field label="Localização" errors={errorsFor(`indicators.${index}.location_id`)}><Select value={indicator.location_id} onChange={(event) => updateAt("indicators", index, { location_id: event.target.value })} required><option value="">Selecione</option>{form.locations.map((location) => <option key={location.id} value={location.id}>{location.ecosystem || "Local sem nome"}</option>)}</Select></Field>
-              <Field label="Atividade vinculada" errors={errorsFor(`indicators.${index}.activity_id`)}><Select value={indicator.activity_id} onChange={(event) => updateAt("indicators", index, { activity_id: event.target.value })} required><option value="">Selecione</option>{form.activities.map((activity) => <option key={activity.id} value={activity.id}>{activity.name || "Atividade sem nome"}</option>)}</Select></Field>
+              <Field label="Localização" errors={errorsFor(`indicators.${index}.location_id`)}><Select value={indicator.location_id} onChange={(event) => updateAt("indicators", index, { location_id: event.target.value })}><option value="">Selecione</option>{form.locations.map((location) => <option key={location.id} value={location.id}>{location.ecosystem || "Local sem nome"}</option>)}</Select></Field>
+              <Field label="Atividade vinculada" errors={errorsFor(`indicators.${index}.activity_id`)}><Select value={indicator.activity_id} onChange={(event) => updateAt("indicators", index, { activity_id: event.target.value })}><option value="">Selecione</option>{form.activities.map((activity) => <option key={activity.id} value={activity.id}>{activity.name || "Atividade sem nome"}</option>)}</Select></Field>
               <Field label="Valor baseline" errors={errorsFor(`indicators.${index}.value_baseline`)}><Input type="number" step="any" value={indicator.value_baseline} onChange={(event) => updateAt("indicators", index, { value_baseline: event.target.value })} /></Field>
               <Field label="Valor de referência (meta)" errors={errorsFor(`indicators.${index}.value_reference`)}><Input type="number" step="any" value={indicator.value_reference} onChange={(event) => updateAt("indicators", index, { value_reference: event.target.value })} /></Field>
-              <Field label="Método de observação" errors={errorsFor(`indicators.${index}.observation_method`)}><Textarea value={indicator.observation_method} onChange={(event) => updateAt("indicators", index, { observation_method: event.target.value })} minLength={10} required /></Field>
-              <Field label="Justificativa" errors={errorsFor(`indicators.${index}.justification`)}><Textarea value={indicator.justification} onChange={(event) => updateAt("indicators", index, { justification: event.target.value })} minLength={10} required /></Field>
+              <Field label="Método de observação" errors={errorsFor(`indicators.${index}.observation_method`)}><Textarea value={indicator.observation_method} onChange={(event) => updateAt("indicators", index, { observation_method: event.target.value })} minLength={10}/></Field>
+              <Field label="Justificativa" errors={errorsFor(`indicators.${index}.justification`)}><Textarea value={indicator.justification} onChange={(event) => updateAt("indicators", index, { justification: event.target.value })} minLength={10}/></Field>
             </div>;
           }}
         </FormFieldWrapper>

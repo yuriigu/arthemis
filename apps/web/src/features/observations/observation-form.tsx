@@ -1,12 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { FormCard } from "@/components/form-card";
 import type { FormAction, MonitoringPeriod } from "@/lib/types";
 import { isValidGeoJSON } from "@/lib/geojson";
+import { GeoJSONPreview } from "@/components/ui/leaflet/geojson-preview";
 import { validateObservation } from "./observation-schema";
 
 export interface ObservationFormValues {
@@ -55,6 +56,11 @@ export function ObservationForm({
 }: ObservationFormProps) {
   const [position, setPosition] = useState<unknown>(data.position ?? null);
   const [notice, setNotice] = useState("");
+  const [maxDate, setMaxDate] = useState<string | undefined>(undefined);
+
+  useEffect(() => {
+    setMaxDate(localDateValue());
+  }, []);
 
   async function handleUpload(event: React.ChangeEvent<HTMLInputElement>) {
     const input = event.currentTarget;
@@ -66,9 +72,8 @@ export function ObservationForm({
       setPosition(parsed);
       setNotice("Arquivo carregado com sucesso.");
     } catch {
-      setNotice("Insira um arquivo GeoJSON válido.");
-    } finally {
       input.value = "";
+      setNotice("Insira um arquivo GeoJSON válido.");
     }
   }
 
@@ -98,21 +103,22 @@ export function ObservationForm({
       >
         {recordId && <input type="hidden" name="id" value={recordId} />}
         <label className="grid gap-2 text-sm font-medium">Indicador
-          <Select name="indicator_id" defaultValue={String(data.indicator_id ?? "")} required>
+          <Select name="indicator_id" defaultValue={String(data.indicator_id ?? "")} >
             <option value="" disabled>Selecione um indicador</option>
             {indicators.map((indicator) => <option key={indicator.id} value={indicator.id}>{indicator.name}</option>)}
           </Select>
         </label>
         <label className="grid gap-2 text-sm font-medium">Valor
-          <Input name="value" type="number" step="any" defaultValue={data.value ?? ""} placeholder="Valor da observação" required />
+          <Input name="value" type="number" step="any" defaultValue={data.value ?? ""} placeholder="Valor da observação" />
         </label>
         <label className="grid gap-2 text-sm font-medium">Data
-          <Input name="date" type="date" defaultValue={dateInputValue(data.date)} max={localDateValue()} required />
+          <Input name="date" type="date" defaultValue={dateInputValue(data.date)} max={maxDate} />
         </label>
         <label className="grid gap-2 text-sm font-medium">Posição
           <Input type="file" accept=".json,.geojson,application/geo+json,application/json" onChange={(event) => void handleUpload(event)} className="h-auto p-1 text-xs file:mr-3 file:h-8 file:rounded file:border-0 file:bg-muted file:px-3" />
           <span className="font-normal text-muted-foreground">Opcional. Envie um arquivo GeoJSON no formato JSON.</span>
         </label>
+        <GeoJSONPreview data={position} className="h-96" />
         <input type="hidden" name="position" value={position == null ? "" : JSON.stringify(position)} />
         {notice && <p role="status" className="text-sm text-muted-foreground">{notice}</p>}
         <Button type="submit" disabled={!action}>{submitLabel}</Button>

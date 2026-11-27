@@ -6,6 +6,7 @@ import {
   ApiError,
   createOrganization,
   deleteOrganization,
+  optionalFormString,
   requireAuthToken,
   requiredFormString,
   requireUuid,
@@ -15,8 +16,8 @@ import {
 export async function createOrganizationAction(formData: FormData) {
   const token = await requireAuthToken();
   await createOrganization({
-    name: requiredFormString(formData, "name"),
-    email: requiredFormString(formData, "email"),
+    name: optionalFormString(formData, "name"),
+    email: optionalFormString(formData, "email"),
   }, token);
   revalidatePath("/organizations");
   redirect("/organizations?success=created");
@@ -26,8 +27,8 @@ export async function updateOrganizationAction(formData: FormData) {
   const token = await requireAuthToken();
   const id = requireUuid(requiredFormString(formData, "id"), "organização");
   await updateOrganization(id, {
-    name: requiredFormString(formData, "name"),
-    email: requiredFormString(formData, "email"),
+    name: optionalFormString(formData, "name"),
+    email: optionalFormString(formData, "email"),
   }, token);
   revalidatePath("/organizations");
   redirect("/organizations?success=updated");

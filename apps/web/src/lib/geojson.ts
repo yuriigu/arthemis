@@ -1,3 +1,5 @@
+import type { Feature, FeatureCollection, Geometry } from "geojson";
+
 type Position = [number, number];
 
 function isPosition(value: unknown): value is Position {
@@ -41,4 +43,67 @@ export function isValidGeoJSON(value: unknown): boolean {
     );
   }
   return isGeometry(value);
+}
+
+export function toGeoJSONFeatureCollection(value: unknown): FeatureCollection | null {
+  if (!isValidGeoJSON(value) || !value || typeof value !== "object" || !("type" in value)) {
+    return null;
+  }
+
+  const geo = value as { type: string; features?: Feature[] };
+  if (geo.type === "FeatureCollection") {
+    return geo.features?.length ? (value as FeatureCollection) : null;
+  }
+  if (geo.type === "Feature") {
+    return {
+      type: "FeatureCollection",
+      features: [value as Feature],
+    };
+  }
+  return {
+    type: "FeatureCollection",
+    features: [
+      {
+        type: "Feature",
+        properties: {},
+        geometry: value as Geometry,
+      },
+    ],
+  };
+}
+
+function collectGeometryPositions(geometry: Geometry): Position[] {
+  switch (geometry.type) {
+    case "Point":
+      return [geometry.coordinates as Position];
+    case "MultiPoint":
+    case "LineString":
+      return geometry.coordinates as Position[];
+    case "MultiLineString":
+    case "Polygon":
+      return (geometry.coordinates as Position[][]).flat();
+    case "MultiPolygon":
+      return (geometry.coordinates as Position[][][]).flat(2);
+    case "GeometryCollection":
+      return geometry.geometries.flatMap(collectGeometryPositions);
+    default:
+      return [];
+  }
+}
+
+export function getGeoJSONCenter(value: unknown): [number, number] {
+  const collection = toGeoJSONFeatureCollection(value);
+  if (!collection) return [0, 0];
+
+  const coordinates = collection.features.flatMap((feature) =>
+    feature.geometry ? collectGeometryPositions(feature.geometry) : [],
+  );
+  if (!coordinates.length) return [0, 0];
+
+  const longitudes = coordinates.map((point) => point[0]);
+  const latitudes = coordinates.map((point) => point[1]);
+  return [
+    (Math.min(...latitudes) + Math.max(...latitudes)) / 2,
+    (Math.min(...longitudes) + Math.max(...longitudes)) / 2,
+  ];
 }

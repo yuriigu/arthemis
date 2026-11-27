@@ -11,9 +11,9 @@ export class CreateActivityDto {
   @IsNotEmpty()
   projectId: string;
 
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
-  name: string;
+  name?: string;
 
   @IsOptional()
   @IsString()

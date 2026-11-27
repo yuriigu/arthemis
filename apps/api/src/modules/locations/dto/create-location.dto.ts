@@ -1,8 +1,6 @@
 import {
-  IsIn,
   IsNotEmpty,
   IsNumber,
-  IsObject,
   IsOptional,
   IsString,
   IsUUID,
@@ -12,6 +10,8 @@ import {
   IUCN_ECOSYSTEM_CODES,
   IucnEcosystemCode,
 } from '../constants/iucn-ecosystem-codes';
+import { IsGeoJSON } from '../../../common/decorators/is-geojson.decorator';
+import { IucnEcosystemCode as IucnEcosystemCodeDecorator } from '../../../common/decorators/iucn-ecosystem-code.decorator';
 
 export class CreateLocationDto {
   @IsUUID()
@@ -23,9 +23,8 @@ export class CreateLocationDto {
   ecosystem?: string;
 
   @IsOptional()
-  @IsString()
-  @IsIn(IUCN_ECOSYSTEM_CODES)
-  ecosystemCode?: IucnEcosystemCode;
+  @IucnEcosystemCodeDecorator()
+  ecosystemCode?: string;
 
   @IsOptional()
   @IsNumber()
@@ -36,6 +35,6 @@ export class CreateLocationDto {
   country?: string;
 
   @IsOptional()
-  @IsObject() // JSONB no banco
+  @IsGeoJSON()
   position?: Prisma.InputJsonValue;
 }

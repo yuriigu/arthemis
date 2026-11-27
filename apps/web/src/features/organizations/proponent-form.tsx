@@ -31,11 +31,11 @@ export function ProponentForm({
     <FormCard title={title} description={description} className={className}>
       <form action={action} className="flex flex-col gap-5">
         <label className="grid gap-2 text-sm font-medium">Nome
-          <Input name="name" defaultValue={data.name ?? ""} placeholder="Nome da organização" maxLength={150} minLength={2} required />
+          <Input name="name" defaultValue={data.name ?? ""} placeholder="Nome da organização" maxLength={150} />
           <span className="font-normal text-muted-foreground">Nome completo da organização.</span>
         </label>
         <label className="grid gap-2 text-sm font-medium">E-mail
-          <Input name="email" type="email" defaultValue={data.email ?? ""} placeholder="contato@organizacao.com" maxLength={150} required />
+          <Input name="email" type="email" defaultValue={data.email ?? ""} placeholder="contato@organizacao.com" maxLength={150} />
           <span className="font-normal text-muted-foreground">E-mail de contato da organização.</span>
         </label>
         <div className="pt-1"><Button type="submit" disabled={!action}>{submitLabel}</Button></div>

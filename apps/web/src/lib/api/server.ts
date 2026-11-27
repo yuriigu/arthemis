@@ -50,6 +50,14 @@ export function requiredFormString(formData: FormData, key: string) {
   return value.trim();
 }
 
+export function optionalFormString(formData: FormData, key: string) {
+  const value = formData.get(key);
+  if (typeof value !== "string" || !value.trim()) {
+    return undefined;
+  }
+  return value.trim();
+}
+
 export function requireUuid(value: string, field: string) {
   if (
     !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
@@ -169,8 +177,8 @@ export interface ProjectSummary {
 }
 
 export interface CreateOrganizationInput {
-  name: string;
-  email: string;
+  name?: string;
+  email?: string;
 }
 
 export interface CreateUserInput {
@@ -183,7 +191,7 @@ export interface CreateUserInput {
 
 export interface CreateProjectInput {
   proponentId: string;
-  name: string;
+  name?: string;
   lifetimeStart?: string;
   lifetimeEnd?: string;
   justification?: string;
@@ -193,6 +201,7 @@ export interface CreateProjectInput {
 export interface CreateLocationInput {
   projectId: string;
   ecosystem?: string;
+  ecosystemCode?: string;
   extent?: number;
   country?: string;
   position?: unknown;
@@ -200,7 +209,7 @@ export interface CreateLocationInput {
 
 export interface CreateActivityInput {
   projectId: string;
-  name: string;
+  name?: string;
   description?: string;
   justification?: string;
   locationIds?: string[];
@@ -209,7 +218,11 @@ export interface CreateActivityInput {
 export interface CreateIndicatorInput {
   activityId: string;
   locationId?: string;
-  name: string;
+  name?: string;
+  component?: string;
+  direction?: string;
+  threshold?: number;
+  referenceSource?: string;
   unit?: string;
   valueBaseline?: number;
   valueReference?: number;
@@ -218,9 +231,10 @@ export interface CreateIndicatorInput {
 }
 
 export interface CreateObservationInput {
-  indicatorId: string;
-  value: number;
-  date: string;
+  indicatorId?: string;
+  periodId?: string;
+  value?: number;
+  date?: string;
   position?: unknown;
 }
 
@@ -277,7 +291,15 @@ async function request<T>(
 
   const body = await response.text();
   if (!body) return undefined as T;
-  return JSON.parse(body) as T;
+  const contentType = response.headers.get("content-type") ?? "";
+  if (contentType.includes("application/json")) {
+    return JSON.parse(body) as T;
+  }
+  try {
+    return JSON.parse(body) as T;
+  } catch {
+    return body as T;
+  }
 }
 
 export function jsonBody(value: unknown) {

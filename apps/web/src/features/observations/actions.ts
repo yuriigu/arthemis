@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import {
   createObservations,
   deleteObservation,
+  optionalFormString,
   requireAuthToken,
   requiredFormString,
   requireUuid,
@@ -23,21 +24,30 @@ function parseObservationPosition(formData: FormData) {
 }
 
 function observationInput(formData: FormData) {
-  const date = requiredFormString(formData, "date");
-  if (!Number.isFinite(Date.parse(date))) {
+  const date = optionalFormString(formData, "date");
+  if (date !== undefined && !Number.isFinite(Date.parse(date))) {
     throw new Error("Informe uma data válida para a observação.");
   }
-  const value = Number(requiredFormString(formData, "value"));
-  if (!Number.isFinite(value)) {
+
+  const rawValue = optionalFormString(formData, "value");
+  const value = rawValue === undefined ? undefined : Number(rawValue);
+  if (value !== undefined && !Number.isFinite(value)) {
     throw new Error("O valor da observação deve ser numérico.");
   }
 
+  const rawIndicatorId = optionalFormString(formData, "indicator_id");
+  const rawPeriodId = optionalFormString(formData, "period_id");
   const position = parseObservationPosition(formData);
+
   return {
-    indicatorId: requireUuid(requiredFormString(formData, "indicator_id"), "indicador"),
-    periodId: requireUuid(requiredFormString(formData, "period_id"), "período"),
-    value,
-    date,
+    ...(rawIndicatorId === undefined
+      ? {}
+      : { indicatorId: requireUuid(rawIndicatorId, "indicador") }),
+    ...(rawPeriodId === undefined
+      ? {}
+      : { periodId: requireUuid(rawPeriodId, "período") }),
+    ...(value === undefined ? {} : { value }),
+    ...(date === undefined ? {} : { date }),
     ...(position === undefined ? {} : { position }),
   };
 }

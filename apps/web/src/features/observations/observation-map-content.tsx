@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import type { FeatureCollection, MultiPolygon, Polygon } from "geojson";
+import type { FeatureCollection, Geometry } from "geojson";
 import { cn } from "@/lib/utils";
 import { isValidGeoJSON } from "@/lib/geojson";
 import {
@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/leaflet";
 import type { MapLocation, ObservationMapProps } from "./types";
 
-function getBoundaryGeometry(position: unknown): Polygon | MultiPolygon | null {
+function getBoundaryGeometry(position: unknown): Geometry | null {
   if (!isValidGeoJSON(position) || !position || typeof position !== "object")
     return null;
   const geometry =
@@ -22,9 +22,7 @@ function getBoundaryGeometry(position: unknown): Polygon | MultiPolygon | null {
       : position;
   if (!geometry || typeof geometry !== "object" || !("type" in geometry))
     return null;
-  if (geometry.type === "Polygon") return geometry as Polygon;
-  if (geometry.type === "MultiPolygon") return geometry as MultiPolygon;
-  return null;
+  return geometry as Geometry;
 }
 
 function ObservationBoundaries({ locations }: { locations: MapLocation[] }) {
@@ -70,11 +68,21 @@ function getCenter(locations: MapLocation[]): [number, number] {
   for (const location of locations) {
     const geometry = getBoundaryGeometry(location.position);
     if (!geometry) continue;
-    const coordinates =
-      geometry.type === "Polygon"
-        ? geometry.coordinates[0]
-        : geometry.coordinates[0]?.[0];
-    if (!coordinates?.length) continue;
+    let coordinates: [number, number][] = [];
+    if (geometry.type === "Point") {
+      coordinates = [geometry.coordinates as [number, number]];
+    } else if (geometry.type === "MultiPoint") {
+      coordinates = geometry.coordinates as [number, number][];
+    } else if (geometry.type === "LineString") {
+      coordinates = geometry.coordinates as [number, number][];
+    } else if (geometry.type === "MultiLineString") {
+      coordinates = (geometry.coordinates as [number, number][][]).flat();
+    } else if (geometry.type === "Polygon") {
+      coordinates = geometry.coordinates[0] as [number, number][];
+    } else if (geometry.type === "MultiPolygon") {
+      coordinates = (geometry.coordinates[0]?.[0] ?? []) as [number, number][];
+    }
+    if (!coordinates.length) continue;
     const longitudes = coordinates.map((point) => point[0]);
     const latitudes = coordinates.map((point) => point[1]);
     return [

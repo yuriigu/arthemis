@@ -32,9 +32,6 @@ export class IndicatorsService {
       throw new BadRequestException('No indicators provided');
 
     for (const ind of data) {
-      if (!ind.component) {
-        throw new BadRequestException('Indicator component is required');
-      }
       this.assertValidThresholdForDirection(ind.direction, ind.threshold);
     }
 

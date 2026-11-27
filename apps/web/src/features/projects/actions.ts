@@ -65,28 +65,34 @@ function parseProject(formData: FormData): SubmittedProject {
   }
 
   const data = value as Partial<SubmittedProject>;
-  if (
-    typeof data.name !== "string" ||
-    typeof data.proponent_id !== "string" ||
-    typeof data.lifetime_start !== "string" ||
-    typeof data.lifetime_end !== "string" ||
-    typeof data.justification !== "string" ||
-    !Array.isArray(data.project_proponents) ||
-    !Array.isArray(data.project_sdgs) ||
-    !Array.isArray(data.locations) ||
-    !Array.isArray(data.activities) ||
-    !Array.isArray(data.indicators)
-  ) {
-    throw new Error("Os dados enviados para o projeto estão incompletos.");
+  if (typeof data.proponent_id !== "string" || !data.proponent_id.trim()) {
+    throw new Error("Selecione a organização responsável pelo projeto.");
   }
-  if (!Number.isFinite(Date.parse(data.lifetime_start)) || !Number.isFinite(Date.parse(data.lifetime_end))) {
-    throw new Error("Informe datas válidas para a vigência do projeto.");
+
+  const lifetimeStart = typeof data.lifetime_start === "string" ? data.lifetime_start : "";
+  const lifetimeEnd = typeof data.lifetime_end === "string" ? data.lifetime_end : "";
+  if (lifetimeStart && !Number.isFinite(Date.parse(lifetimeStart))) {
+    throw new Error("Informe uma data de início válida para a vigência do projeto.");
   }
-  if (Date.parse(data.lifetime_end) < Date.parse(data.lifetime_start)) {
+  if (lifetimeEnd && !Number.isFinite(Date.parse(lifetimeEnd))) {
+    throw new Error("Informe uma data de término válida para a vigência do projeto.");
+  }
+  if (lifetimeStart && lifetimeEnd && Date.parse(lifetimeEnd) < Date.parse(lifetimeStart)) {
     throw new Error("A data de término deve ser posterior à data de início.");
   }
 
-  return data as SubmittedProject;
+  return {
+    name: typeof data.name === "string" ? data.name : "",
+    proponent_id: data.proponent_id,
+    lifetime_start: lifetimeStart,
+    lifetime_end: lifetimeEnd,
+    justification: typeof data.justification === "string" ? data.justification : "",
+    project_proponents: Array.isArray(data.project_proponents) ? data.project_proponents : [],
+    project_sdgs: Array.isArray(data.project_sdgs) ? data.project_sdgs : [],
+    locations: Array.isArray(data.locations) ? data.locations : [],
+    activities: Array.isArray(data.activities) ? data.activities : [],
+    indicators: Array.isArray(data.indicators) ? data.indicators : [],
+  };
 }
 
 function finiteNumber(value: number | string, field: string) {
@@ -103,28 +109,33 @@ async function performProjectCreation(formData: FormData): Promise<ProjectAction
 
   const projectId = await createProject({
     proponentId,
-    name: data.name.trim(),
-    justification: data.justification.trim(),
-    lifetimeStart: data.lifetime_start,
-    lifetimeEnd: data.lifetime_end,
-    sdgIds,
+    ...(data.name.trim() ? { name: data.name.trim() } : {}),
+    ...(data.justification.trim() ? { justification: data.justification.trim() } : {}),
+    ...(data.lifetime_start ? { lifetimeStart: data.lifetime_start } : {}),
+    ...(data.lifetime_end ? { lifetimeEnd: data.lifetime_end } : {}),
+    ...(sdgIds.length ? { sdgIds } : {}),
   }, token);
   requireUuid(projectId, "projeto criado");
 
   if (data.project_proponents.length) {
-    await addProjectProponents(projectId, data.project_proponents.map((item) => ({
-      proponentId: requireUuid(item.proponent_id, "organização relacionada"),
-      role: item.role.trim(),
-    })), token);
+    const validProponents = data.project_proponents.filter((item) => item.proponent_id.trim());
+    if (validProponents.length) {
+      await addProjectProponents(projectId, validProponents.map((item) => ({
+        proponentId: requireUuid(item.proponent_id, "organização relacionada"),
+        role: item.role.trim(),
+      })), token);
+    }
   }
 
   const locationIds = data.locations.length
     ? await createLocations(data.locations.map((location) => ({
       projectId,
-      ecosystem: location.ecosystem.trim(),
-      ecosystemCode: location.ecosystemCode,
-      country: location.country.trim(),
-      extent: finiteNumber(location.extent_ha, "extensão"),
+      ...(location.ecosystem.trim() ? { ecosystem: location.ecosystem.trim() } : {}),
+      ...(location.ecosystemCode ? { ecosystemCode: location.ecosystemCode } : {}),
+      ...(location.country.trim() ? { country: location.country.trim() } : {}),
+      ...(String(location.extent_ha).trim() !== ""
+        ? { extent: finiteNumber(location.extent_ha, "extensão") }
+        : {}),
       ...(location.position && typeof location.position === "object"
         ? { position: location.position }
         : {}),
@@ -140,14 +151,12 @@ async function performProjectCreation(formData: FormData): Promise<ProjectAction
   const activityIds = data.activities.length
     ? await createActivities(data.activities.map((activity) => ({
       projectId,
-      name: activity.name.trim(),
-      description: activity.description.trim(),
-      justification: activity.justification.trim(),
-      locationIds: activity.location_ids.map((id) => {
-        const locationId = locationIdsByFormId.get(id);
-        if (!locationId) throw new Error("Uma atividade referencia uma localização inválida.");
-        return locationId;
-      }),
+      ...(activity.name.trim() ? { name: activity.name.trim() } : {}),
+      ...(activity.description.trim() ? { description: activity.description.trim() } : {}),
+      ...(activity.justification.trim() ? { justification: activity.justification.trim() } : {}),
+      locationIds: activity.location_ids
+        .map((id) => locationIdsByFormId.get(id))
+        .filter((id): id is string => Boolean(id)),
     })), token)
     : [];
   if (activityIds.length !== data.activities.length) {
@@ -157,31 +166,41 @@ async function performProjectCreation(formData: FormData): Promise<ProjectAction
     data.activities.map((activity, index) => [activity.id, activityIds[index]]),
   );
 
-  if (data.indicators.length) {
-    await createIndicators(data.indicators.map((indicator) => {
-      const activityId = activityIdsByFormId.get(indicator.activity_id);
-      const locationId = locationIdsByFormId.get(indicator.location_id);
-      if (!activityId || !locationId) {
-        throw new Error("Um indicador referencia uma atividade ou localização inválida.");
-      }
+  const validIndicators = data.indicators.filter((indicator) =>
+    activityIdsByFormId.has(indicator.activity_id),
+  );
+  if (validIndicators.length) {
+    await createIndicators(validIndicators.map((indicator) => {
+      const activityId = activityIdsByFormId.get(indicator.activity_id)!;
+      const locationId = indicator.location_id
+        ? locationIdsByFormId.get(indicator.location_id)
+        : undefined;
       return {
-  activityId,
-  locationId,
-  name: indicator.name.trim(),
-  unit: indicator.unit.trim(),
-  component: indicator.component,
-  direction: indicator.direction,
-  ...(indicator.threshold.trim()
-    ? { threshold: Number(indicator.threshold) }
-    : {}),
-  ...(indicator.referenceSource.trim()
-    ? { referenceSource: indicator.referenceSource.trim() }
-    : {}),
-  valueBaseline: finiteNumber(indicator.value_baseline, "valor baseline"),
-  valueReference: finiteNumber(indicator.value_reference, "valor de referência"),
-  observationMethod: indicator.observation_method.trim(),
-  justification: indicator.justification.trim(),
-};
+        activityId,
+        ...(locationId ? { locationId } : {}),
+        ...(indicator.name.trim() ? { name: indicator.name.trim() } : {}),
+        ...(indicator.unit.trim() ? { unit: indicator.unit.trim() } : {}),
+        ...(indicator.component ? { component: indicator.component } : {}),
+        ...(indicator.direction ? { direction: indicator.direction } : {}),
+        ...(indicator.threshold.trim()
+          ? { threshold: Number(indicator.threshold) }
+          : {}),
+        ...(indicator.referenceSource.trim()
+          ? { referenceSource: indicator.referenceSource.trim() }
+          : {}),
+        ...(String(indicator.value_baseline).trim() !== ""
+          ? { valueBaseline: finiteNumber(indicator.value_baseline, "valor baseline") }
+          : {}),
+        ...(String(indicator.value_reference).trim() !== ""
+          ? { valueReference: finiteNumber(indicator.value_reference, "valor de referência") }
+          : {}),
+        ...(indicator.observation_method.trim()
+          ? { observationMethod: indicator.observation_method.trim() }
+          : {}),
+        ...(indicator.justification.trim()
+          ? { justification: indicator.justification.trim() }
+          : {}),
+      };
     }), token);
   }
 
