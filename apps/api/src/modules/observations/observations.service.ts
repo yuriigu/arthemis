@@ -23,7 +23,15 @@ export class ObservationsService {
       orderBy: [{ date: 'desc' }, { createdAt: 'desc' }],
       include: {
         indicator: {
-          select: { id: true, name: true, unit: true },
+        select: { id: true, name: true, unit: true }, 
+      },
+          period: {
+        select: {
+        id: true,
+        startDate: true,
+        endDate: true,
+        verified: true,
+        },
         },
       },
     });
@@ -34,15 +42,20 @@ export class ObservationsService {
       throw new BadRequestException('No observations provided');
 
     for (const observation of data) {
-  await this.assertWritable(observation.periodId, new Date(observation.date));
-}
+      if (observation.periodId) {
+        await this.assertWritable(
+          observation.periodId,
+          observation.date ? new Date(observation.date) : undefined,
+        );
+      }
+    }
 
     const observations = await this.prisma.observation.createManyAndReturn({
       data: data.map((observation) => ({
         indicatorId: observation.indicatorId,
         periodId: observation.periodId,
         value: observation.value,
-        date: new Date(observation.date),
+        date: observation.date ? new Date(observation.date) : undefined,
         position: observation.position,
       })),
       select: { id: true },
@@ -64,13 +77,15 @@ export class ObservationsService {
       include: { period: true },
     });
     if (!existing) throw new NotFoundException('Observation not found');
-    if (existing.period.verified) {
+    if (existing.period?.verified) {
       throw new BadRequestException('Período verificado não aceita alteração');
-        }
+    }
 
-      const nextDate = data.date ? new Date(data.date) : existing.date;
-      const periodId = data.periodId ?? existing.periodId;
+    const nextDate = data.date ? new Date(data.date) : existing.date ?? undefined;
+    const periodId = data.periodId ?? existing.periodId;
+    if (periodId) {
       await this.assertWritable(periodId, nextDate);
+    }
     return this.prisma.observation.update({
       where: { id },
       data: {
@@ -83,19 +98,19 @@ export class ObservationsService {
     });
   }
 
-  private async assertWritable(periodId: string, date: Date) {
-  const period = await this.prisma.monitoringPeriod.findUnique({
-    where: { id: periodId },
-  });
-  if (!period) throw new NotFoundException('Período não encontrado');
-  if (period.verified) {
-    throw new BadRequestException('Período verificado não aceita alteração');
+  private async assertWritable(periodId: string, date?: Date) {
+    const period = await this.prisma.monitoringPeriod.findUnique({
+      where: { id: periodId },
+    });
+    if (!period) throw new NotFoundException('Período não encontrado');
+    if (period.verified) {
+      throw new BadRequestException('Período verificado não aceita alteração');
+    }
+    if (date && (date < period.startDate || date > period.endDate)) {
+      throw new BadRequestException('Data fora do período de monitoramento');
+    }
+    return period;
   }
-  if (date < period.startDate || date > period.endDate) {
-    throw new BadRequestException('Data fora do período de monitoramento');
-  }
-  return period;
-}
 
 async remove(id: string) {
   const existing = await this.prisma.observation.findFirst({
@@ -103,7 +118,7 @@ async remove(id: string) {
     include: { period: true },
   });
   if (!existing) throw new NotFoundException('Observation not found');
-  if (existing.period.verified) {
+  if (existing.period?.verified) {
     throw new BadRequestException('Período verificado não aceita alteração');
   }
 

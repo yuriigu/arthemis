@@ -179,7 +179,9 @@ export class CreditsService {
 
     for (const activity of project.activities) {
       for (const indicator of activity.indicators) {
+        if (!indicator.direction || !indicator.component) continue;
         for (const obs of indicator.observations) {
+          if (obs.date === null || obs.value === null) continue;
           allObservations.push({
             date: obs.date,
             value: obs.value,
@@ -265,7 +267,9 @@ export class CreditsService {
 
         if (
           indicator.valueBaseline === null ||
-          indicator.valueReference === null
+          indicator.valueReference === null ||
+          indicator.direction === null ||
+          indicator.component === null
         ) {
           continue;
         }

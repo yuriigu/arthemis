@@ -12,9 +12,9 @@ export class CreateProjectDto {
   @IsNotEmpty()
   proponentId: string;
 
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
-  name: string;
+  name?: string;
 
   @IsOptional()
   @IsDateString()

@@ -1,0 +1,23 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Área do projeto - Exemplo",
+        "ecosystem": "Floresta",
+        "country": "Brasil"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[
+          [-43.25, -22.95],
+          [-43.15, -22.95],
+          [-43.15, -22.85],
+          [-43.25, -22.85],
+          [-43.25, -22.95]
+        ]]
+      }
+    }
+  ]
+}

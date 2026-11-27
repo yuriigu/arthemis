@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { ThemeProvider } from "@/components/layout/theme-provider";
 import { Toaster } from "sonner";
 import "./globals.css";
+import "leaflet/dist/leaflet.css";
 
 export const metadata: Metadata = {
   title: "Arthemis",

@@ -4,7 +4,6 @@ import { useState, type FormEvent } from "react";
 import { Button } from "@/components/ui/button";
 import { FormCard } from "@/components/form-card";
 import { Input } from "@/components/ui/input";
-import { SocialAuthButtons } from "@/features/auth/social-auth-buttons";
 import styles from "@/features/auth/login.module.css";
 
 export function RegisterForm() {
@@ -21,7 +20,7 @@ export function RegisterForm() {
       description="Preencha seus dados para começar."
       className={styles.formCard}
     >
-      <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+      <form onSubmit={handleSubmit} className="flex flex-col gap-5">
         <label className="grid gap-2 text-sm font-semibold text-foreground">
           Nome
           <Input
@@ -79,8 +78,6 @@ export function RegisterForm() {
             {notice}
           </p>
         )}
-
-        <SocialAuthButtons />
       </form>
     </FormCard>
   );

@@ -2,12 +2,19 @@ import "server-only";
 
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import type { MonitoringPeriod } from "@/lib/types";
 
 const apiBaseUrl = (
   process.env.ARTHEMIS_API_URL ??
   process.env.API_URL ??
   "http://localhost:3000/api"
 ).replace(/\/+$/, "");
+
+export function getSession(token: string) {
+  return request<{ role: "admin" | "manager" | "visitor" }>("auth/validate", token, {
+    method: "POST",
+  });
+}
 
 export class ApiError extends Error {
   constructor(
@@ -39,6 +46,14 @@ export function requiredFormString(formData: FormData, key: string) {
   const value = formData.get(key);
   if (typeof value !== "string" || !value.trim()) {
     throw new Error(`O campo "${key}" é obrigatório.`);
+  }
+  return value.trim();
+}
+
+export function optionalFormString(formData: FormData, key: string) {
+  const value = formData.get(key);
+  if (typeof value !== "string" || !value.trim()) {
+    return undefined;
   }
   return value.trim();
 }
@@ -162,8 +177,8 @@ export interface ProjectSummary {
 }
 
 export interface CreateOrganizationInput {
-  name: string;
-  email: string;
+  name?: string;
+  email?: string;
 }
 
 export interface CreateUserInput {
@@ -176,7 +191,7 @@ export interface CreateUserInput {
 
 export interface CreateProjectInput {
   proponentId: string;
-  name: string;
+  name?: string;
   lifetimeStart?: string;
   lifetimeEnd?: string;
   justification?: string;
@@ -186,6 +201,7 @@ export interface CreateProjectInput {
 export interface CreateLocationInput {
   projectId: string;
   ecosystem?: string;
+  ecosystemCode?: string;
   extent?: number;
   country?: string;
   position?: unknown;
@@ -193,7 +209,7 @@ export interface CreateLocationInput {
 
 export interface CreateActivityInput {
   projectId: string;
-  name: string;
+  name?: string;
   description?: string;
   justification?: string;
   locationIds?: string[];
@@ -202,7 +218,11 @@ export interface CreateActivityInput {
 export interface CreateIndicatorInput {
   activityId: string;
   locationId?: string;
-  name: string;
+  name?: string;
+  component?: string;
+  direction?: string;
+  threshold?: number;
+  referenceSource?: string;
   unit?: string;
   valueBaseline?: number;
   valueReference?: number;
@@ -211,9 +231,10 @@ export interface CreateIndicatorInput {
 }
 
 export interface CreateObservationInput {
-  indicatorId: string;
-  value: number;
-  date: string;
+  indicatorId?: string;
+  periodId?: string;
+  value?: number;
+  date?: string;
   position?: unknown;
 }
 
@@ -270,7 +291,15 @@ async function request<T>(
 
   const body = await response.text();
   if (!body) return undefined as T;
-  return JSON.parse(body) as T;
+  const contentType = response.headers.get("content-type") ?? "";
+  if (contentType.includes("application/json")) {
+    return JSON.parse(body) as T;
+  }
+  try {
+    return JSON.parse(body) as T;
+  } catch {
+    return body as T;
+  }
 }
 
 export function jsonBody(value: unknown) {
@@ -469,12 +498,6 @@ export function transitionProject(id: string, to: string, token: string) {
   });
 }
 
-export function getSession(token: string) {
-  return request<{ role: "admin" | "manager" | "visitor" }>("auth/validate", token, {
-    method: "POST",
-  });
-}
-
 export function addProjectProponents(
   projectId: string,
   proponents: Array<{ proponentId: string; role: string }>,
@@ -649,4 +672,26 @@ export function deleteIndicator(id: string, token: string) {
     method: "DELETE",
   });
 }
- 
+
+export function listMonitoringPeriods(projectId: string, token: string) {
+  return request<MonitoringPeriod[]>(
+    `monitoring-period?projectId=${encodeURIComponent(projectId)}`,
+    token,
+  );
+}
+
+export function createMonitoringPeriod(
+  input: { projectId: string; startDate: string; endDate: string; yearT: number },
+  token: string,
+) {
+  return request("monitoring-period/create", token, {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export function verifyMonitoringPeriod(id: string, token: string) {
+  return request(`monitoring-period/${encodeURIComponent(id)}/verify`, token, {
+    method: "POST",
+  });
+}

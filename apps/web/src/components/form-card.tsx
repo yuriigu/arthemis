@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
@@ -45,7 +46,7 @@ export function FormFieldWrapper({
     <section className="space-y-4 rounded-lg border border-border p-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h3 className="font-semibold">{title}</h3>
-        <button type="button" onClick={onAdd} className="text-sm font-medium text-foreground underline underline-offset-4">{addLabel}</button>
+        <Button variant="link" size="sm" onClick={onAdd}>{addLabel}</Button>
       </div>
       {items.length === 0 && <p className="text-sm text-muted-foreground">Nenhum item adicionado.</p>}
       {items.map((_, index) => (

@@ -63,7 +63,7 @@ export function ProjectList({ projects, deleteAction }: { projects: ProjectListI
             <thead className="bg-background text-muted-foreground"><tr>{["Nome", "Status", "Ecossistema", "Período", "Ações"].map((heading) => <th key={heading} className="px-4 py-3 font-medium">{heading}</th>)}</tr></thead>
             <tbody>{filtered.map((project) => (
               <tr key={project.id} className="border-t border-border">
-                <td className="px-4 py-3"><Link href={`/projects/${project.id}`} className="font-semibold text-foreground hover:underline">{project.name}</Link></td>
+                <td className="px-4 py-3"><Link href={`/projects/${project.id}`} className="font-semibold text-primary hover:underline">{project.name}</Link></td>
                 <td className="px-4 py-3"><Badge variant="secondary">{PROJECT_STATUS_LABEL[project.status ?? "draft"]}</Badge></td>
                 <td className="px-4 py-3 text-muted-foreground">{project.locations?.map(formatLocationEcosystem).filter(Boolean).join(", ") || "Não definido"}</td>
                 <td className="whitespace-nowrap px-4 py-3 text-muted-foreground">{formatDate(project.lifetime_start)} - {formatDate(project.lifetime_end)}</td>

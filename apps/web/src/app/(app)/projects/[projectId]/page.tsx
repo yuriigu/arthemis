@@ -1,7 +1,9 @@
+import { Suspense } from "react";
 import {
   ApiError,
   getProject,
   getSession,
+  listMonitoringPeriods,
   listProjectObservations,
   requireAuthToken,
 } from "@/lib/api/server";
@@ -17,7 +19,7 @@ async function getProjectOrNotFound(projectId: string, token: string) {
   }
 }
 
-export default async function ProjectDetailPage({
+async function ProjectDetailContent({
   params,
   searchParams,
 }: {
@@ -29,10 +31,11 @@ export default async function ProjectDetailPage({
     searchParams,
     requireAuthToken(),
   ]);
-  const [project, observations, session] = await Promise.all([
+  const [project, observations, session, periods] = await Promise.all([
     getProjectOrNotFound(projectId, token),
     listProjectObservations(token, projectId),
     getSession(token),
+    listMonitoringPeriods(projectId, token),
   ]);
 
   return (
@@ -41,6 +44,33 @@ export default async function ProjectDetailPage({
       observations={observations}
       role={session.role}
       error={error}
+      periods={periods}
     />
+  );
+}
+
+export default function ProjectDetailPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ projectId: string }>;
+  searchParams: Promise<{ error?: string }>;
+}) {
+  return (
+    <Suspense
+      fallback={
+        <section
+          className="w-full space-y-6"
+          aria-busy="true"
+          aria-label="Carregando detalhes do projeto"
+        >
+          <div className="h-6 w-32 animate-pulse rounded bg-muted" />
+          <div className="h-40 animate-pulse rounded-lg bg-muted" />
+          <div className="h-96 animate-pulse rounded-lg bg-muted" />
+        </section>
+      }
+    >
+      <ProjectDetailContent params={params} searchParams={searchParams} />
+    </Suspense>
   );
 }

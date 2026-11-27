@@ -18,13 +18,13 @@ export class CreateIndicatorDto {
   @IsUUID()
   locationId?: string;
 
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
-  name: string;
+  name?: string;
 
+  @IsOptional()
   @IsEnum(IndicatorComponent)
-  @IsNotEmpty()
-  component: IndicatorComponent;
+  component?: IndicatorComponent;
 
   @IsOptional()
   @IsEnum(Direction)

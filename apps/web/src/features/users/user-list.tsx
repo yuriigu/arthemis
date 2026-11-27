@@ -43,12 +43,12 @@ export function UserList({ users, proponents, updateAction, deleteAction }: { us
       {!filtered.length ? <p className="py-6 text-center text-sm text-muted-foreground">Nenhum usuário cadastrado ou encontrado para a busca.</p> : (
         <div className="overflow-x-auto">
           <table className="w-full border-collapse text-left text-sm">
-            <thead><tr className="text-xs font-semibold text-muted-foreground"><th className="px-2 py-3">Usuário</th><th className="px-2 py-3">Dados</th><th className="px-2 py-3">Ações</th></tr></thead>
+            <thead><tr className="text-xs font-semibold text-muted-foreground"><th className="px-4 py-3">Usuário</th><th className="px-4 py-3">Dados</th><th className="px-4 py-3">Ações</th></tr></thead>
             <tbody>{filtered.map((user) => {
               const formId = `user-${user.id}`;
               return <tr key={user.id} className="border-t border-border align-top">
-                <td className="px-2 py-3"><strong className="block">{user.username}</strong><span className="text-muted-foreground">{user.id}</span></td>
-                <td className="px-2 py-3"><form action={updateAction} id={formId} className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                <td className="px-4 py-3"><strong className="block">{user.username}</strong><span className="text-muted-foreground">{user.id}</span></td>
+                <td className="px-4 py-3"><form action={updateAction} id={formId} className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                   <input type="hidden" name="id" value={user.id} />
                   <label className="grid gap-1.5 text-xs text-muted-foreground">Organização
                     <Select name="proponent_id" required defaultValue={user.proponentId}><option value="" disabled>Selecione</option>{proponents.map((proponent) => <option key={proponent.id} value={proponent.id}>{proponent.name}</option>)}</Select>
@@ -59,7 +59,7 @@ export function UserList({ users, proponents, updateAction, deleteAction }: { us
                     <Select name="role" required defaultValue={user.role}>{roles.map((role) => <option key={role.value} value={role.value}>{role.label}</option>)}</Select>
                   </label>
                 </form></td>
-                <td className="px-2 py-3"><RecordActions updateFormId={formId} deleteId={user.id} updateAction={updateAction} deleteAction={deleteAction} /></td>
+                <td className="px-4 py-3"><RecordActions updateFormId={formId} deleteId={user.id} updateAction={updateAction} deleteAction={deleteAction} /></td>
               </tr>;
             })}</tbody>
           </table>

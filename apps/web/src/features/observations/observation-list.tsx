@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { Input } from "@/components/ui/input";
 import RecordActions from "@/components/record-actions";
 import { ObservationForm } from "./observation-form";
-import type { FormAction } from "@/lib/types";
+import type { FormAction, MonitoringPeriod } from "@/lib/types";
 import styles from "./observation-list.module.css";
 
 interface ObservationRecord {
@@ -14,6 +14,7 @@ interface ObservationRecord {
   date: string;
   position: unknown | null;
   indicator?: { id: string; name: string; unit: string | null };
+  period?: {  id: string;  startDate: string;  endDate: string;  verified: boolean;} | null;
 }
 
 interface ObservationIndicator {
@@ -25,12 +26,14 @@ interface ObservationIndicator {
 export function ObservationList({
   observations,
   indicators,
+  periods,
   createAction,
   updateAction,
   deleteAction,
 }: {
   observations: ObservationRecord[];
   indicators: ObservationIndicator[];
+  periods: MonitoringPeriod[];
   createAction: FormAction;
   updateAction: FormAction;
   deleteAction: FormAction;
@@ -57,6 +60,7 @@ export function ObservationList({
         {indicators.length ? (
           <ObservationForm
             indicators={formIndicators}
+            periods={periods}
             action={createAction}
             className="border-0 p-0 shadow-none"
           />
@@ -100,6 +104,8 @@ export function ObservationList({
                         {observation.indicator?.unit ? ` ${observation.indicator.unit}` : ""}
                         {" · "}
                         {new Date(`${observation.date.slice(0, 10)}T00:00:00`).toLocaleDateString("pt-BR")}
+                        {" · "}
+                        {observation.period ? `${observation.period.startDate.slice(0, 10)} a ${observation.period.endDate.slice(0, 10)}` : "Sem período"}
                       </p>
                     </div>
                     <RecordActions
@@ -119,6 +125,7 @@ export function ObservationList({
                       date: observation.date,
                       position: observation.position,
                     }}
+                    periods={periods}
                     action={updateAction}
                     submitLabel="Salvar alterações"
                     className="border-0 p-0 shadow-none"

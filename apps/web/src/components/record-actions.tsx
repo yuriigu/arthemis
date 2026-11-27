@@ -10,6 +10,7 @@ export interface RecordActionsProps {
   deleteAction?: FormAction;
   saveLabel?: string;
   deleteLabel?: string;
+  disabled?: boolean;
 }
 
 export default function RecordActions({
@@ -19,15 +20,28 @@ export default function RecordActions({
   deleteAction,
   saveLabel = "Salvar",
   deleteLabel = "Excluir",
+  disabled = false,
 }: RecordActionsProps) {
   return (
     <div className="flex w-max min-w-36 items-center gap-2 whitespace-nowrap">
-      <Button type="submit" form={updateFormId} size="sm" className="min-w-16" disabled={!updateAction}>
+      <Button
+        type="submit"
+        form={updateFormId}
+        size="sm"
+        className="min-w-16"
+        disabled={disabled || !updateAction}
+      >
         {saveLabel}
       </Button>
       <form action={deleteAction}>
         <input type="hidden" name="id" value={deleteId} />
-        <Button type="submit" variant="destructive" size="sm" className="min-w-16" disabled={!deleteAction}>
+        <Button
+          type="submit"
+          variant="destructive"
+          size="sm"
+          className="min-w-16"
+          disabled={disabled || !deleteAction}
+        >
           {deleteLabel}
         </Button>
       </form>

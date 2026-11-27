@@ -4,7 +4,6 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { FormCard } from "@/components/form-card";
-import { SocialAuthButtons } from "@/features/auth/social-auth-buttons";
 import type { FormAction } from "@/lib/types";
 
 export interface UserLoginProps {
@@ -30,7 +29,7 @@ export function UserLogin({
 }: UserLoginProps) {
   return (
     <FormCard title={title} description={description} className={className}>
-      <form action={action} className="flex flex-col gap-4">
+      <form action={action} className="flex flex-col gap-5">
         <label className="grid gap-2 text-sm font-semibold text-foreground">E-mail
           <Input name="email" type="email" defaultValue={data.email ?? ""} placeholder="nome@exemplo.com" maxLength={150} autoComplete="email" required />
         </label>
@@ -57,7 +56,6 @@ export function UserLogin({
         >
           {submitLabel}
         </Button>
-        <SocialAuthButtons />
       </form>
         </FormCard>
       );

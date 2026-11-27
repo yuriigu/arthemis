@@ -2,6 +2,8 @@ import { Suspense } from "react";
 import { ObservationList } from "@/features/observations/observation-list";
 import {
   listIndicators,
+  listMonitoringPeriods,
+  listProjects,
   listObservations,
   requireAuthToken,
 } from "@/lib/api/server";
@@ -13,20 +15,28 @@ import {
 
 async function ObservationsContent() {
   const token = await requireAuthToken();
-  const [indicators, observations] = await Promise.all([
+  const [indicators, observations, projects] = await Promise.all([
     listIndicators(token),
     listObservations(token),
+    listProjects(token),
   ]);
+  const periodGroups = await Promise.all(
+    projects.map((project) => listMonitoringPeriods(project.id, token)),
+  );
+  const periods = periodGroups.flat();
 
   return (
     <section className="w-full space-y-6">
       <header>
         <h1 className="text-2xl font-semibold">Observações</h1>
-        <p className="mt-1 text-sm text-muted-foreground">Acompanhe observações vinculadas aos indicadores.</p>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Acompanhe observações vinculadas aos indicadores.
+        </p>
       </header>
       <ObservationList
         observations={observations}
         indicators={indicators}
+        periods={periods}
         createAction={createObservationAction}
         updateAction={updateObservationAction}
         deleteAction={deleteObservationAction}

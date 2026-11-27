@@ -1,11 +1,11 @@
-import { IsEmail, IsNotEmpty, IsString } from 'class-validator';
+import { IsEmail, IsOptional, IsString } from 'class-validator';
 
 export class CreateOrganizationDto {
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
-  name: string;
+  name?: string;
 
+  @IsOptional()
   @IsEmail()
-  @IsNotEmpty()
-  email: string;
+  email?: string;
 }
