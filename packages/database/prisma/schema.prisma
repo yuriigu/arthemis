@@ -194,17 +194,17 @@ model Indicator {
 }
 
 model Observation {
-  id          String            @id @default(uuid())
-  indicatorId String?           @map("indicator_id")
-  indicator   Indicator?        @relation(fields: [indicatorId], references: [id], onDelete: Cascade)
+  id          String           @id @default(uuid())
+  indicatorId String?          @map("indicator_id")
+  indicator   Indicator?       @relation(fields: [indicatorId], references: [id], onDelete: Cascade)
   value       Float?
-  date        DateTime?         @db.Date
-  position    Json?             @db.JsonB
-  createdAt   DateTime          @default(now()) @map("created_at")
-  updatedAt   DateTime          @updatedAt @map("updated_at")
-  deletedAt   DateTime?         @map("deleted_at")
-  periodId    String?           @map("period_id")
-  period      MonitoringPeriod? @relation(fields: [periodId], references: [id])
+  date        DateTime?        @db.Date
+  position    Json?            @db.JsonB
+  createdAt   DateTime         @default(now()) @map("created_at")
+  updatedAt   DateTime         @updatedAt @map("updated_at")
+  deletedAt   DateTime?        @map("deleted_at")
+  periodId    String           @map("period_id")
+  period      MonitoringPeriod @relation(fields: [periodId], references: [id])
 
   @@index([indicatorId])
   @@map("observations")

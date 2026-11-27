@@ -121,6 +121,7 @@ export function ObservationList({
                     indicators={formIndicators}
                     data={{
                       indicator_id: observation.indicatorId,
+                      period_id: observation.period?.id ?? "",
                       value: observation.value,
                       date: observation.date,
                       position: observation.position,

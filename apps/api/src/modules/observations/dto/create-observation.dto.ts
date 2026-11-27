@@ -8,9 +8,8 @@ import {
 import { Prisma } from '@arthemis/database';
 
 export class CreateObservationDto {
-  @IsOptional()
   @IsUUID()
-  periodId?: string;
+  periodId: string;
 
   @IsOptional()
   @IsUUID()

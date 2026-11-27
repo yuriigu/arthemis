@@ -12,6 +12,7 @@ import { validateObservation } from "./observation-schema";
 
 export interface ObservationFormValues {
   indicator_id: string | number;
+  period_id: string;
   value: string | number;
   date: string | Date;
   position: unknown;
@@ -106,6 +107,12 @@ export function ObservationForm({
           <Select name="indicator_id" defaultValue={String(data.indicator_id ?? "")} >
             <option value="" disabled>Selecione um indicador</option>
             {indicators.map((indicator) => <option key={indicator.id} value={indicator.id}>{indicator.name}</option>)}
+          </Select>
+        </label>
+        <label className="grid gap-2 text-sm font-medium">Período de monitoramento
+          <Select name="period_id" defaultValue={String(data.period_id ?? "")} required>
+            <option value="" disabled>Selecione um período</option>
+            {periods.map((period) => <option key={period.id} value={period.id}>T{period.yearT} — {new Date(period.startDate).toLocaleDateString("pt-BR")} a {new Date(period.endDate).toLocaleDateString("pt-BR")}</option>)}
           </Select>
         </label>
         <label className="grid gap-2 text-sm font-medium">Valor

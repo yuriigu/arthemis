@@ -54,7 +54,11 @@ function observationInput(formData: FormData) {
 
 export async function createObservationAction(formData: FormData) {
   const token = await requireAuthToken();
-  const ids = await createObservations([observationInput(formData)], token);
+  const input = observationInput(formData);
+  if (!input.periodId) {
+    throw new Error("O período de monitoramento é obrigatório.");
+  }
+  const ids = await createObservations([input], token);
   if (ids.length !== 1) {
     throw new Error("A API não confirmou a criação da observação.");
   }
